@@ -4,6 +4,11 @@
 #define L 8 //Numero de Linhas
 #define C 8 //Numero de Colunas
 
+typedef struct{
+    int socket;
+    char tab[L][C]; //Tabuleiro do jogador
+}Jogador;
+
 // Inicializa o tabuleiro
 void inicializa_tabuleiro(char tab[L][C]);
 
