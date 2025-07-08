@@ -11,6 +11,27 @@
 
 #define PORT 8080
 
+char info[1024];
+
+typedef struct{
+    int socket;
+    char tab[L][C]; //Tabuleiro do jogador
+}Jogador;
+
+int recebe_comando(const char* cmd){
+    if (strncmp(cmd, CMD_JOIN, 4) == 0) {
+        sscanf(cmd, "JOIN %s", info); //Guarda a informacao do jogador
+        return 1;
+    }
+    else if(strncmp(cmd, CMD_POS, 3) == 0){
+        return 2;
+    }
+    else if(strncmp(cmd, CMD_READY, 5) == 0){
+        printf("\n");
+    }
+    return -1;
+}
+
 void atribui_jogadores(int player1, int player2){
     srand((unsigned)time(NULL));
 
@@ -31,9 +52,9 @@ void processa_tipoCmd(int tipoCmd, int player1, int player2){
             send(player2, "JOGO INICIADO!\n", strlen("JOGO INICIADO!\n"), 0);
 
             atribui_jogadores(player1, player2); //Sorteia qual dos jogadores eh o jogador 1 e 2  
-            // send(player1, "-Posicione os seu barcos\n", strlen("-Posicione os seu barcos\n"), 0);
-            // send(player2, "JOGO INICIADO!\n", strlen("JOGO INICIADO!\n"), 0);
             break;
+        case 2:
+
     }
     return;
 }
@@ -61,14 +82,16 @@ int main() {
 
     printf("Servidor aguardando jogadores na porta %d...\n", PORT);
 
-    int player1 = accept(server_fd, (struct sockaddr*)&address, &addrlen);
-    int player2 = accept(server_fd, (struct sockaddr*)&address, &addrlen);
-    
-    if (player1 < 0) perror("Accept player 1 failed");
-    if (player2 < 0) perror("Accept player 2 failed");
+    Jogador player1, player2;
 
-    send(player1, "<<[Bem vind@ ao jogo Batalha Naval!]>>\n", strlen("<<[Bem vind@ ao jogo Batalha Naval!]>>\n"), 0);
-    send(player2, "<<[Bem vind@ ao jogo Batalha Naval!]>>\n", strlen("<<[Bem vind@ ao jogo Batalha Naval!]>>\n"), 0);
+    player1.socket = accept(server_fd, (struct sockaddr*)&address, &addrlen);
+    player2.socket = accept(server_fd, (struct sockaddr*)&address, &addrlen);
+    
+    if (player1.socket < 0) perror("Accept player 1 failed");
+    if (player2.socket < 0) perror("Accept player 2 failed");
+
+    send(player1.socket, "<<[Bem vind@ ao jogo Batalha Naval!]>>\n", strlen("<<[Bem vind@ ao jogo Batalha Naval!]>>\n"), 0);
+    send(player2.socket, "<<[Bem vind@ ao jogo Batalha Naval!]>>\n", strlen("<<[Bem vind@ ao jogo Batalha Naval!]>>\n"), 0);
 
 
     // Lendo os comandos do jogador
@@ -80,8 +103,8 @@ int main() {
     processa_tipoCmd(tipoCmd, player1, player2); //Processa e reaje conforme o cmd recebido
 
     // Fecha os sockets dos jogadores
-    close(player1);
-    close(player2);
+    close(player1.socket);
+    close(player2.socket);
 
     // Fecha o socket do servidor
     close(server_fd);
