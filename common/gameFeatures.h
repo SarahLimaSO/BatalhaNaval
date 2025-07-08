@@ -5,41 +5,13 @@
 #define C 8 //Numero de Colunas
 
 // Inicializa o tabuleiro
-void inicializa_tabuleiro(char tab[L][C]){
-   
-    for (int i = 0; i < L; i++) {
-        for (int j = 0; j < C; j++) {
-            tab[i][j] = '~';
-        }
-    }
-}
+void inicializa_tabuleiro(char tab[L][C]);
 
 // Imprime tabuleiro
-void print_tabuleiro(char tab[L][C]){
+void print_tabuleiro(char tab[L][C]);
 
-    //Identificando a numeracao das colunas
-    
-    printf("  ");
-    for(int i = 0; i < C; i++){
-        printf("  %d ", i+1);
-    }
-    putchar('\n');
+// Posiciona os barcos no tabuleiro
+void* posiciona_barcos(void *arg);
 
-    //Identificando as linhas do tabuleiro
-    for(int i = 0; i < L; i++){
-        
-        printf("%c ", i+65); //Usando a tabela ascii para imprimir as letras
-       
-        // Imprimindo o tabuleiro
-        for (int j = 0; j < C; j++) {
-            putchar('|');
-            printf(" %c ", tab[i][j]);
-        }
-        putchar('|');
-        putchar('\n');
-    }
-}
-
-void jogadas_cliente(char tab[L][C]){
-
-}
+// Processa as jogadas do cliente
+void jogadas_cliente(char tab[L][C]);

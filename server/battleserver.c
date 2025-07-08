@@ -31,15 +31,14 @@ void processa_tipoCmd(int tipoCmd, int player1, int player2){
             send(player2, "JOGO INICIADO!\n", strlen("JOGO INICIADO!\n"), 0);
 
             atribui_jogadores(player1, player2); //Sorteia qual dos jogadores eh o jogador 1 e 2  
+            // send(player1, "-Posicione os seu barcos\n", strlen("-Posicione os seu barcos\n"), 0);
+            // send(player2, "JOGO INICIADO!\n", strlen("JOGO INICIADO!\n"), 0);
             break;
     }
+    return;
 }
 
-void posiciona_barcos
-
 int main() {
-
-    
 
     int server_fd;
     struct sockaddr_in address;
@@ -79,25 +78,6 @@ int main() {
     int tipoCmd = recebe_comando(buffer);
 
     processa_tipoCmd(tipoCmd, player1, player2); //Processa e reaje conforme o cmd recebido
-
-    // Tomando precaucoes para que o sockets nao sejam sobrescritos nas threads
-    int* socket_p1 = malloc(sizeof(int));
-    int* socket_p2 = malloc(sizeof(int));
-
-    socket_p1 = player1;
-    socket_p2 = player2;
- 
-    // Criando as threads para parelizacao (Essas threads precisam estar no client?)
-    pthread_t thread[2];
-    pthread_create(&thread[0], NULL, posiciona_barcos, socket_p1);
-    pthread_create(&thread[1], NULL, posiciona_barcos, socket_p2);
-
-    pthread_join(&thread[0], NULL);
-    pthread_join(&thread[1], NULL);
-
-    // Libera recursos da thread ao terminar
-    pthread_detach(thread[0]); 
-    pthread_detach(thread[1]); 
 
     // Fecha os sockets dos jogadores
     close(player1);

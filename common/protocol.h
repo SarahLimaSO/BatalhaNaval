@@ -17,15 +17,16 @@
 
 char info[1024];
 
-// void recebe_comando(const char* cmd){
-//     if (strncmp(cmd, CMD_JOIN, 4) == 0) {
-//         sscanf(cmd, "JOIN %s", info); //Guarda a informacao do jogador
-        
-//     }
-//     else if(strncmp(cmd, CMD_READY, 5) == 0){
-
-//     }
-// }
+int recebe_comando(const char* cmd){
+    if (strncmp(cmd, CMD_JOIN, 4) == 0) {
+        sscanf(cmd, "JOIN %s", info); //Guarda a informacao do jogador
+        return 1;
+    }
+    else if(strncmp(cmd, CMD_READY, 5) == 0){
+        printf("\n");
+    }
+    return -1;
+}
 void responde_comando(){
 
 }

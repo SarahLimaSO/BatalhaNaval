@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <string.h>
+#include <pthread.h>
 #include "../common/protocol.h"
 #include "../common/gameFeatures.h"
 
@@ -35,17 +36,17 @@ int main() {
     read(sock, buffer, MAX_MSG);
     printf("Servidor: %s\n", buffer);
 
-    // Tomando precaucoes para que o sockets nao sejam sobrescritos nas threads
-    int* socket_p1 = malloc(sizeof(int));
-    int* socket_p2 = malloc(sizeof(int));
-
-    socket_p1 = player1;
-    socket_p2 = player2;
- 
     // Criando as threads para parelizacao
     pthread_t thread[2];
-    pthread_create(&thread[0], NULL, posiciona_barcos, socket_p1);
-    pthread_create(&thread[1], NULL, posiciona_barcos, socket_p2);
+    pthread_create(&thread[0], NULL, posiciona_barcos,tabuleiro1);
+    pthread_create(&thread[1], NULL, posiciona_barcos, tabuleiro2);
+
+    pthread_join(&thread[0], NULL);
+    pthread_join(&thread[1], NULL);
+
+    // Libera recursos da thread ao terminar
+    pthread_detach(thread[0]); 
+    pthread_detach(thread[1]); 
 
     close(sock);
     return 0;
