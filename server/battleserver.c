@@ -92,22 +92,28 @@ int main() {
     if (player2 < 0) perror("Accept player 2 failed");
     
 
-    send(player1, "<<[Bem vind@ ao jogo Batalha Naval!]>>\n", 33, 0);
-    send(player1, "Emparelhado! Você é o Jogador 1\n", 33, 0);
+    send(player1, "<<[Bem vind@ ao jogo Batalha Naval!]>>\n", strlen("<<[Bem vind@ ao jogo Batalha Naval!]>>\n"), 0);
+    send(player1, "Emparelhado! Você é o Jogador 1\n", strlen("Emparelhado! Você é o Jogador 1\n"), 0);
 
-    send(player2, "<<[Bem vind@ ao jogo Batalha Naval!]>>\n", 33, 0);
-    send(player2, "Emparelhado! Você é o Jogador 2\n", 33, 0);
+    send(player2, "<<[Bem vind@ ao jogo Batalha Naval!]>>\n", strlen("<<[Bem vind@ ao jogo Batalha Naval!]>>\n"), 0);
+    send(player2, "Emparelhado! Você é o Jogador 2\n", strlen("Emparelhado! Você é o Jogador 2\n"), 0);
 
     // Criando as threads para parelizacao
-    // pthread_t thread[2];
-    // pthread_create(&thread[0], NULL, jogadas_cliente, server_fd);
-    // pthread_create(&thread[1], NULL, jogadas_cliente, server_fd);
+    pthread_t thread[2];
+    pthread_create(&thread[0], NULL, jogadas_cliente, server_fd);
+    pthread_create(&thread[1], NULL, jogadas_cliente, server_fd);
 
     // Lendo os comandos do jogador
-    // char buffer[1024];
-    // recv(server_fd, buffer, sizeof(buffer), 0);
+    char buffer[1024];
+    recv(server_fd, buffer, sizeof(buffer), 0);
 
-    // Mensagem msg = recebe_comando(buffer);
+    int tipoCmd = recebe_comando(buffer);
+
+    switch(tipoCmd){
+        case 1:
+            send(player1, "JOGO INICIADO!\n", strlen("JOGO INICIADO!\n"), 0);
+    }
+
     // const char* resposta = gerar_resposta(msg.tipo);
 
     // send(socket_fd, resposta, strlen(resposta), 0);
@@ -116,6 +122,11 @@ int main() {
     // pthread_detach(thread[0]); 
     // pthread_detach(thread[1]); 
 
+    // Fecha os sockets dos jogadores
+    close(player1);
+    close(player2);
+
+    // Fecha o socket do servidor
     close(server_fd);
     return 0;
 }
