@@ -4,65 +4,42 @@
 #include <string.h>
 #include <unistd.h>
 #include <netinet/in.h>
-#include "../common/protocol.h"
 #include <pthread.h>
+#include <time.h>
+#include "../common/protocol.h"
+#include "../common/gameFeatures.h"
 
 #define PORT 8080
-#define L 8 //Numero de Linhas
-#define C 8 //Numero de Colunas
 
-// Inicializa o tabuleiro
-void inicializa_tabuleiro(char tab[L][C]){
-   
-    for (int i = 0; i < L; i++) {
-        for (int j = 0; j < C; j++) {
-            tab[i][j] = '~';
-        }
+void atribui_jogadores(int player1, int player2){
+    srand((unsigned)time(NULL));
+
+    int sorteio = rand() % 2;
+
+    if (sorteio == 0) {
+        send(player1, "Você é o Jogador 1\n", 21, 0);
+        send(player2, "Você é o Jogador 2\n", 21, 0);
+    } else {
+        send(player2, "Você é o Jogador 1\n", 21, 0);
+        send(player1, "Você é o Jogador 2\n", 21, 0);
+    }
+}
+void processa_tipoCmd(int tipoCmd, int player1, int player2){
+    switch(tipoCmd){
+        case 1:
+            send(player1, "JOGO INICIADO!\n", strlen("JOGO INICIADO!\n"), 0);
+            send(player2, "JOGO INICIADO!\n", strlen("JOGO INICIADO!\n"), 0);
+
+            atribui_jogadores(player1, player2); //Sorteia qual dos jogadores eh o jogador 1 e 2  
+            break;
     }
 }
 
-// Imprime tabuleiro
-void print_tabuleiro(char tab[L][C]){
-
-    //Identificando a numeracao das colunas
-    
-    printf("  ");
-    for(int i = 0; i < C; i++){
-        printf("  %d ", i+1);
-    }
-    putchar('\n');
-
-    //Identificando as linhas do tabuleiro
-    for(int i = 0; i < L; i++){
-        
-        printf("%c ", i+65); //Usando a tabela ascii para imprimir as letras
-       
-        // Imprimindo o tabuleiro
-        for (int j = 0; j < C; j++) {
-            putchar('|');
-            printf(" %c ", tab[i][j]);
-        }
-        putchar('|');
-        putchar('\n');
-    }
-}
-
-void jogadas_cliente(char tab[L][C]){
-
-}
+void posiciona_barcos
 
 int main() {
 
-    char tabuleiro1[L][C];
-    char tabuleiro2[L][C];
-
-    inicializa_tabuleiro(tabuleiro1);
-    inicializa_tabuleiro(tabuleiro2);
-
-    printf("[TABULEIRO]\n");
-    print_tabuleiro(tabuleiro1);
-    printf("[TABULEIRO 2]\n");
-    print_tabuleiro(tabuleiro2);
+    
 
     int server_fd;
     struct sockaddr_in address;
@@ -90,18 +67,10 @@ int main() {
     
     if (player1 < 0) perror("Accept player 1 failed");
     if (player2 < 0) perror("Accept player 2 failed");
-    
 
     send(player1, "<<[Bem vind@ ao jogo Batalha Naval!]>>\n", strlen("<<[Bem vind@ ao jogo Batalha Naval!]>>\n"), 0);
-    send(player1, "Emparelhado! Você é o Jogador 1\n", strlen("Emparelhado! Você é o Jogador 1\n"), 0);
-
     send(player2, "<<[Bem vind@ ao jogo Batalha Naval!]>>\n", strlen("<<[Bem vind@ ao jogo Batalha Naval!]>>\n"), 0);
-    send(player2, "Emparelhado! Você é o Jogador 2\n", strlen("Emparelhado! Você é o Jogador 2\n"), 0);
 
-    // Criando as threads para parelizacao
-    pthread_t thread[2];
-    pthread_create(&thread[0], NULL, jogadas_cliente, server_fd);
-    pthread_create(&thread[1], NULL, jogadas_cliente, server_fd);
 
     // Lendo os comandos do jogador
     char buffer[1024];
@@ -109,18 +78,26 @@ int main() {
 
     int tipoCmd = recebe_comando(buffer);
 
-    switch(tipoCmd){
-        case 1:
-            send(player1, "JOGO INICIADO!\n", strlen("JOGO INICIADO!\n"), 0);
-    }
+    processa_tipoCmd(tipoCmd, player1, player2); //Processa e reaje conforme o cmd recebido
 
-    // const char* resposta = gerar_resposta(msg.tipo);
+    // Tomando precaucoes para que o sockets nao sejam sobrescritos nas threads
+    int* socket_p1 = malloc(sizeof(int));
+    int* socket_p2 = malloc(sizeof(int));
 
-    // send(socket_fd, resposta, strlen(resposta), 0);
+    socket_p1 = player1;
+    socket_p2 = player2;
+ 
+    // Criando as threads para parelizacao (Essas threads precisam estar no client?)
+    pthread_t thread[2];
+    pthread_create(&thread[0], NULL, posiciona_barcos, socket_p1);
+    pthread_create(&thread[1], NULL, posiciona_barcos, socket_p2);
+
+    pthread_join(&thread[0], NULL);
+    pthread_join(&thread[1], NULL);
 
     // Libera recursos da thread ao terminar
-    // pthread_detach(thread[0]); 
-    // pthread_detach(thread[1]); 
+    pthread_detach(thread[0]); 
+    pthread_detach(thread[1]); 
 
     // Fecha os sockets dos jogadores
     close(player1);
