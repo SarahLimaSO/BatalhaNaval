@@ -36,17 +36,30 @@ int main() {
     read(sock, buffer, MAX_MSG);
     printf("Servidor: %s\n", buffer);
 
-    // Criando as threads para parelizacao
-    pthread_t thread[2];
-    pthread_create(&thread[0], NULL, posicionamento_thread,tabuleiro1);
-    pthread_create(&thread[1], NULL, posicionamento_thread, tabuleiro2);
+    // int total_barcos = MAX_DEST + MAX_FRAG + MAX_SUB;
+    // int i = 0;
 
-    pthread_join(thread[0], NULL);
-    pthread_join(thread[1], NULL);
+    //Deve ler as entradas do jogador e mandar ao servidor(onde processa essa entrada) e devolve resposta
+    // while (i <= total_barcos) {
+    //     char tipo[20];
+    //     int x, y;
+    //     char orientacao;
 
-    // Libera recursos da thread ao terminar
-    pthread_detach(thread[0]); 
-    pthread_detach(thread[1]); 
+    //     printf("\nDigite tipo, x, y e orientação (ex: DESTROYER 2 3 H): ");
+    //     scanf("%s %d %d %c", tipo, &x, &y, &orientacao);
+
+    //     sprintf(buffer, "POS %s %d %d %c", tipo, x, y, orientacao);
+    //     send(sock, buffer, strlen(buffer), 0);
+
+    //     memset(buffer, 0, sizeof(buffer));
+    //     recv(sock, buffer, sizeof(buffer), 0);
+    //     printf("Servidor respondeu: %s\n", buffer);
+
+    //     if (strncmp(buffer, "**Navio posicionado**", 22) == 0) {
+    //         i++;
+    //     }
+    // }
+
 
     close(sock);
     return 0;

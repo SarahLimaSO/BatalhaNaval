@@ -99,6 +99,19 @@ int main() {
 
     processa_tipoCmd(tipoCmd, player1, player2); //Processa e reaje conforme o cmd recebido
 
+    // Inicializa tabuleiros
+    inicializa_tabuleiro(player1.tab);
+    inicializa_tabuleiro(player2.tab);
+
+    // Cria uma thread para cada jogador
+    // pthread_t threads[2];
+    // pthread_create(&threads[0], NULL, posicionamento_thread, (void*)&player1);
+    // pthread_create(&threads[1], NULL, posicionamento_thread, (void*)&player2);
+
+    // // Aguarda ambas terminarem
+    // pthread_join(threads[0], NULL);
+    // pthread_join(threads[1], NULL);
+
     // Fecha os sockets dos jogadores
     close(player1.socket);
     close(player2.socket);

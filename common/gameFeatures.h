@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define L 8 //Numero de Linhas do tabuleiro
 #define C 8 //Numero de Colunas do tabuleiro
