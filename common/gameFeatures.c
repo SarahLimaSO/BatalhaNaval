@@ -36,46 +36,116 @@ void print_tabuleiro(char tab[L][C]){
     }
 }
 
-void* posiciona_barcos(void *arg){
-    Jogador *player = arg;
+int posiciona_navio(char tab[L][C], char tipo[20], int x, int y, char orientacao){
+    
+    //Falta tratar caso de sobreposicao !!!!!!
+    
+    if (strncmp(tipo, "SUBMARINO", len("SUBMARINO")) == 0) tab[x][y] = '*';
+    
+    if (strncmp(tipo, "FRAGATA", len("FRAGATA")) == 0){
+        
+        if(orientacao == 'H'){
+            if(y+1 < C){
+                tab[x][y] = '$';
+                tab[x][y+1] = '$';
+                return 1;
+            }
+            else{
+                tab[x][y-1] = '$';
+                tab[x][y] = '$';
+                return 1;
+            }
+        }
+        else{
+            if(x+1 < L){
+                tab[x][y] = '$';
+                tab[x+1][y] = '$';
+                return 1;
+            }
+            else{
+                tab[x-1][y] = '$';
+                tab[x][y] = '$';
+                return 1;
+            }
+        }
+    }
+    if (strncmp(tipo, "DESTROYER", len("DESTROYER")) == 0){
+        
+        if(orientacao == 'H'){
+            if(y+2 < C){
+                tab[x][y] = '#';
+                tab[x][y+1] = '#';
+                tab[x][y+2] = '#';
+                return 1;
+            }
+            else if(y+1 < C){
+                tab[x][y-1] = '#';
+                tab[x][y] = '#';
+                tab[x][y+1] = '#';
+                return 1;
+            }
+            else{
+                tab[x][y-2] = '#';
+                tab[x][y-1] = '#';
+                tab[x][y] = '#';
+                return 1;
+            }
+        }
+        else{
+            if(x+2 < L){
+                tab[x][y] = '#';
+                tab[x+1][y] = '#';
+                tab[x+2][y] = '#';
+                return 1;
+            }
+            else if(x+1 < L){
+                tab[x-1][y] = '#';
+                tab[x][y] = '#';
+                tab[x+1][y] = '#';
+                return 1;
+            }
+            else{
+                tab[x-2][y] = '#';
+                tab[x-1][y] = '#';
+                tab[x][y] = '#';
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
 
-    int submarinos = 1;
-    int fragatas = 2;
-    int destroyers = 1;
-    int posX, posY;
+void* posicionamento_thread(void* arg) {
+    Jogador* jogador = (struct Jogador*) arg;
+    char buffer[1024];
 
-    printf("**Posicione os seus navios**\n");
+    int max_barcos = MAX_DEST + MAX_FRAG + MAX_SUB;
+    int i = 0; //Contador
+    
+    // Posicionando os barcos
+    while (i <= max_barcos) {
+        recv(jogador->socket, buffer, sizeof(buffer), 0);
 
-    // Posicionando os  Submarinos (tamanho 1)
-
-    for (int i = submarinos; i > -1; i--) {
-        printf("Número de submarinos restantes: %d\n", i);
         if (strncmp(buffer, "POS", 3) == 0) {
             char tipo[20];
             int x, y;
             char orientacao;
-
             sscanf(buffer, "POS %s %d %d %c", tipo, &x, &y, &orientacao);
 
-        // Solicita entrada, valida e posiciona
-    }
+            int resultado = posiciona_navio(jogador->tab, tipo, x, y, orientacao);
 
-    // Posicionando as Fragatas (tamanho 2)
-    for (int i = fragatas; i > -1; i--) {
-        printf("Número de fragatas restantes: %d\n", i);
-        // Solicita início, direção e valida posições
-    }
-
-    // Posicionando os Destroyers (tamanho 3)
-    for (int i = destroyers; i > -1; i--){
-        printf("Número de destroyers restantes: %d\n", i);
-        // Idem acima, adaptado pro tamanho
+            if (resultado == 1) {
+                send(jogador->socket, "**Navio posicionado**\n", strlen("**Navio posicionado**\n"), 0);
+                i++;
+            } else {
+                send(jogador->socket, "!!Erro ao posicionar navio!!\n", strlen("!!Erro ao posicionar navio!!\n"), 0);
+            }
+        }
     }
 
     printf("Todos os navios foram posicionados!\n");
-    print_tabuleiro(tab); // Exibe o tabuleiro final
-}
+    print_tabuleiro(jogador->tab); // Exibe o tabuleiro final
 
-void jogadas_cliente(char tab[L][C]){
+    pthread_exit(NULL);
 
 }
