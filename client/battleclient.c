@@ -40,25 +40,7 @@ int main() {
     // int i = 0;
 
     //Deve ler as entradas do jogador e mandar ao servidor(onde processa essa entrada) e devolve resposta
-    // while (i <= total_barcos) {
-    //     char tipo[20];
-    //     int x, y;
-    //     char orientacao;
-
-    //     printf("\nDigite tipo, x, y e orientação (ex: DESTROYER 2 3 H): ");
-    //     scanf("%s %d %d %c", tipo, &x, &y, &orientacao);
-
-    //     sprintf(buffer, "POS %s %d %d %c", tipo, x, y, orientacao);
-    //     send(sock, buffer, strlen(buffer), 0);
-
-    //     memset(buffer, 0, sizeof(buffer));
-    //     recv(sock, buffer, sizeof(buffer), 0);
-    //     printf("Servidor respondeu: %s\n", buffer);
-
-    //     if (strncmp(buffer, "**Navio posicionado**", 22) == 0) {
-    //         i++;
-    //     }
-    // }
+    
 
 
     close(sock);

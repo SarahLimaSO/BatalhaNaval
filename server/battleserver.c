@@ -7,9 +7,19 @@
 #include <pthread.h>
 #include <time.h>
 #include "../common/protocol.h"
-#include "../common/gameFeatures.h"
+#include <string.h>
 
 #define PORT 8080
+#define L 8 //Numero de Linhas do tabuleiro
+#define C 8 //Numero de Colunas do tabuleiro
+#define MAX_SUB 1 //Numero maximo de submarinos
+#define MAX_FRAG 2 //Numero maximo de fragatas
+#define MAX_DEST  1 //Numero maximo de destroyers
+
+typedef struct{
+    int socket;
+    char tab[L][C]; //Tabuleiro do jogador
+}Jogador;
 
 char info[1024];
 
@@ -40,6 +50,8 @@ void atribui_jogadores(int player1, int player2){
         send(player1, "Você é o Jogador 2\n", 21, 0);
     }
 }
+
+// Processa o comando enviado pelo cliente
 void processa_tipoCmd(int tipoCmd, Jogador player1, Jogador player2){
     switch(tipoCmd){
         case 1:
@@ -55,6 +67,206 @@ void processa_tipoCmd(int tipoCmd, Jogador player1, Jogador player2){
     }
     return;
 }
+
+// Inicializa o tabuleiro
+void inicializa_tabuleiro(char tab[L][C]){
+   
+    for (int i = 0; i < L; i++) {
+        for (int j = 0; j < C; j++) {
+            tab[i][j] = '~';
+        }
+    }
+}
+
+// Imprime tabuleiro
+void print_tabuleiro(char tab[L][C]){
+
+    //Identificando a numeracao das colunas
+    
+    printf("  ");
+    for(int i = 0; i < C; i++){
+        printf("  %d ", i+1);
+    }
+    putchar('\n');
+
+    //Identificando as linhas do tabuleiro
+    for(int i = 0; i < L; i++){
+        
+        printf("%c ", i+65); //Usando a tabela ascii para imprimir as letras
+       
+        // Imprimindo o tabuleiro
+        for (int j = 0; j < C; j++) {
+            putchar('|');
+            printf(" %c ", tab[i][j]);
+        }
+        putchar('|');
+        putchar('\n');
+    }
+}
+
+int posiciona_navio(char tab[L][C], char tipo[20], int x, int y, char orientacao){
+    
+    //Falta tratar caso de sobreposicao !!!!!!
+    
+    if (strncmp(tipo, "SUBMARINO", strlen("SUBMARINO")) == 0) tab[x][y] = '*';
+    
+    if (strncmp(tipo, "FRAGATA", strlen("FRAGATA")) == 0){
+        
+        if(orientacao == 'H'){
+            if(y+1 < C){
+                tab[x][y] = '$';
+                tab[x][y+1] = '$';
+                return 1;
+            }
+            else{
+                tab[x][y-1] = '$';
+                tab[x][y] = '$';
+                return 1;
+            }
+        }
+        else{
+            if(x+1 < L){
+                tab[x][y] = '$';
+                tab[x+1][y] = '$';
+                return 1;
+            }
+            else{
+                tab[x-1][y] = '$';
+                tab[x][y] = '$';
+                return 1;
+            }
+        }
+    }
+    if (strncmp(tipo, "DESTROYER", strlen("DESTROYER")) == 0){
+        
+        if(orientacao == 'H'){
+            if(y+2 < C){
+                tab[x][y] = '#';
+                tab[x][y+1] = '#';
+                tab[x][y+2] = '#';
+                return 1;
+            }
+            else if(y+1 < C){
+                tab[x][y-1] = '#';
+                tab[x][y] = '#';
+                tab[x][y+1] = '#';
+                return 1;
+            }
+            else{
+                tab[x][y-2] = '#';
+                tab[x][y-1] = '#';
+                tab[x][y] = '#';
+                return 1;
+            }
+        }
+        else{
+            if(x+2 < L){
+                tab[x][y] = '#';
+                tab[x+1][y] = '#';
+                tab[x+2][y] = '#';
+                return 1;
+            }
+            else if(x+1 < L){
+                tab[x-1][y] = '#';
+                tab[x][y] = '#';
+                tab[x+1][y] = '#';
+                return 1;
+            }
+            else{
+                tab[x-2][y] = '#';
+                tab[x-1][y] = '#';
+                tab[x][y] = '#';
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
+void* posicionamento_thread(void* arg) {
+    Jogador* jogador = (Jogador*) arg;
+    char buffer[1024];
+
+    int total_navios = MAX_DEST + MAX_FRAG + MAX_SUB;
+    int navios_pos = 0; //Numero de navios ja posicionados
+
+    while (navios_pos < total_navios) {
+        memset(buffer, 0, sizeof(buffer));
+
+        int n = recv(jogador->socket, buffer, sizeof(buffer) - 1, 0);
+        if (n <= 0) {
+            perror("Erro ao receber dados do cliente");
+            break;
+        }
+
+        buffer[n] = '\0';
+
+        // Esperado: "POS SUBMARINO 4 3 H"
+        if (strncmp(buffer, "POS", 3) == 0) {
+            char tipo[20];
+            int x, y;
+            char orientacao;
+
+            if (sscanf(buffer, "POS %s %d %d %c", tipo, &x, &y, &orientacao) == 4) {
+
+                //Recebe o retorno indicando se o posicionamento foi bem sucedido
+                int sucesso = posiciona_navio(jogador->tab, tipo, x, y, orientacao);
+                if (sucesso) {
+                    send(jogador->socket, "**Navio posicionado**\n", strlen("**Navio posicionado**\n"), 0);
+                    navios_pos++;
+                } else {
+                    send(jogador->socket, "!!Erro ao posicionar navio!!\n", strlen("!!Erro ao posicionar navio!!\n"), 0);
+                }
+            } else {
+                send(jogador->socket, "!!Formato inválido!!\n", strlen("!!Formato inválido!!\n"), 0);
+            }
+        } else {
+            send(jogador->socket, "!!Comando desconhecido!!\n", strlen("!!Comando desconhecido!!\n"), 0);
+        }
+    }
+
+    // Fim do posicionamento
+    send(jogador->socket, "**Todos os navios posicionados. Aguardando oponente...**\n",
+    strlen("**Todos os navios posicionados. Aguardando oponente...**\n"), 0);
+
+    pthread_exit(NULL);
+}
+
+// void* posicionamento_thread(void* arg) {
+//     Jogador* jogador = (Jogador*) arg;
+//     char buffer[1024];
+
+//     int max_barcos = MAX_DEST + MAX_FRAG + MAX_SUB;
+//     int i = 0;
+
+//     //Deve receber a informacao do servidor acerca do posicionamento e processa-la
+//     while (i <= max_barcos) {
+//         memset(buffer, 0, sizeof(buffer));
+//         recv(jogador->socket, buffer, sizeof(buffer), 0);
+
+//         if (strncmp(buffer, "POS", 3) == 0) {
+//             char tipo[20];
+//             int x, y;
+//             char orientacao;
+//             sscanf(buffer, "POS %s %d %d %c", tipo, &x, &y, &orientacao);
+
+//             //Recebe se o posicionamento foi bem sucedido ou n
+//             int resultado = posiciona_navio(jogador->tab, tipo, x, y, orientacao);
+
+//             if (resultado == 1) {
+//                 send(jogador->socket, "**Navio posicionado**\n", strlen("**Navio posicionado**\n"), 0);
+//                 i++;
+//             } else {
+//                 send(jogador->socket, "!!Erro ao posicionar navio!!\n", strlen("!!Erro ao posicionar navio!!\n"), 0);
+//             }
+//         }
+//     }
+
+//     printf("Todos os navios foram posicionados!\n");
+//     print_tabuleiro(jogador->tab); // Exibe o tabuleiro final
+
+//     pthread_exit(NULL);
+// }
 
 int main() {
 
@@ -104,13 +316,13 @@ int main() {
     inicializa_tabuleiro(player2.tab);
 
     // Cria uma thread para cada jogador
-    // pthread_t threads[2];
-    // pthread_create(&threads[0], NULL, posicionamento_thread, (void*)&player1);
-    // pthread_create(&threads[1], NULL, posicionamento_thread, (void*)&player2);
+    pthread_t threads[2];
+    pthread_create(&threads[0], NULL, posicionamento_thread, &player1);
+    pthread_create(&threads[1], NULL, posicionamento_thread, &player2);
 
-    // // Aguarda ambas terminarem
-    // pthread_join(threads[0], NULL);
-    // pthread_join(threads[1], NULL);
+    // Aguarda ambas terminarem
+    pthread_join(threads[0], NULL);
+    pthread_join(threads[1], NULL);
 
     // Fecha os sockets dos jogadores
     close(player1.socket);
