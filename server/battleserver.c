@@ -12,50 +12,45 @@
 #define PORT 8080
 
 char info[1024];
+int jogadores_prontos = 0;
+pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t cond_inicio = PTHREAD_COND_INITIALIZER;
 
-int recebe_comando(const char* cmd){
+int processa_comando(char cmd[1024], Jogador* player){
+
     if (strncmp(cmd, CMD_JOIN, 4) == 0) {
-        sscanf(cmd, "JOIN %s", info); //Guarda a informacao do jogador
-        return 1;
+        char nome[22];
+
+         if (sscanf(cmd, "JOIN %63s", nome) == 1) {
+            strncpy(player->nome, nome, sizeof(player->nome) - 1);
+            player->nome[sizeof(player->nome) - 1] = '\0';
+
+            send(player->socket, "JOGO INICIADO!\n", strlen("JOGO INICIADO!\n"), 0);
+            
+            return 1;  
+        }
     }
+    
     else if(strncmp(cmd, CMD_POS, 3) == 0){
-        return 2;
+        char tipo[20];
+        int x, y;
+        char orientacao;
+        
+        if (sscanf(cmd, "POS %19s %d %d %c", tipo, &x, &y, &orientacao) == 4) {
+            return 2;
+        }
     }
     else if(strncmp(cmd, CMD_READY, 5) == 0){
         printf("\n");
+        return 3;
     }
-    return -1;
+    fprintf(stderr, "Erro: comando desconhecido.\n");
+    return 0;
 }
 
-void atribui_jogadores(int player1, int player2){
-    srand((unsigned)time(NULL));
-
-    int sorteio = rand() % 2;
-
-    if (sorteio == 0) {
-        send(player1, "Você é o Jogador 1\n", 21, 0);
-        send(player2, "Você é o Jogador 2\n", 21, 0);
-    } else {
-        send(player2, "Você é o Jogador 1\n", 21, 0);
-        send(player1, "Você é o Jogador 2\n", 21, 0);
-    }
-}
-
-// Processa o comando enviado pelo cliente
-void processa_tipoCmd(int tipoCmd, Jogador player1, Jogador player2){
-    switch(tipoCmd){
-        case 1:
-            send(player1.socket, "JOGO INICIADO!\n", strlen("JOGO INICIADO!\n"), 0);
-            send(player2.socket, "JOGO INICIADO!\n", strlen("JOGO INICIADO!\n"), 0);
-
-            atribui_jogadores(player1.socket, player2.socket); //Sorteia qual dos jogadores eh o jogador 1 e 2  
-            break;
-        case 2:
-            send(player1.socket, "**Posicione os seus navios**\n", strlen("**Posicione os seus navios**\n"), 0);
-            send(player2.socket, "**Posicione os seus navios**\n", strlen("**Posicione os seus navios**\n"), 0);
-            break;
-    }
-    return;
+int sorteia_player(int player1, int player2){
+    srand(time(NULL));
+    return rand() % 2; 
 }
 
 // Inicializa o tabuleiro
@@ -97,6 +92,9 @@ void print_tabuleiro(char tab[L][C]){
 int posiciona_navio(char tab[L][C], char tipo[20], int x, int y, char orientacao){
     
     //Falta tratar caso de sobreposicao !!!!!!
+    if (x < 0 || x >= L || y < 0 || y >= C) {
+        return 0; 
+    }
     
     if (strncmp(tipo, "SUBMARINO", strlen("SUBMARINO")) == 0) tab[x][y] = '*';
     
@@ -173,8 +171,7 @@ int posiciona_navio(char tab[L][C], char tipo[20], int x, int y, char orientacao
     return 0;
 }
 
-void* posicionamento_thread(void* arg) {
-    Jogador* jogador = (Jogador*) arg;
+void posicionamento_player(Jogador* player ) {
     char buffer[1024];
 
     int total_navios = MAX_DEST + MAX_FRAG + MAX_SUB;
@@ -183,7 +180,7 @@ void* posicionamento_thread(void* arg) {
     while (navios_pos < total_navios) {
         memset(buffer, 0, sizeof(buffer));
 
-        int n = recv(jogador->socket, buffer, sizeof(buffer) - 1, 0);
+        int n = recv(player->socket, buffer, sizeof(buffer) - 1, 0);
         if (n <= 0) {
             perror("Erro ao receber dados do cliente");
             break;
@@ -200,26 +197,68 @@ void* posicionamento_thread(void* arg) {
             if (sscanf(buffer, "POS %s %d %d %c", tipo, &x, &y, &orientacao) == 4) {
 
                 //Recebe o retorno indicando se o posicionamento foi bem sucedido
-                int sucesso = posiciona_navio(jogador->tab, tipo, x, y, orientacao);
+                int sucesso = posiciona_navio(player->tab, tipo, x, y, orientacao);
                 if (sucesso) {
-                    send(jogador->socket, "**Navio posicionado**\n", strlen("**Navio posicionado**\n"), 0);
+                    send(player->socket, "**Navio posicionado**\n", strlen("**Navio posicionado**\n"), 0);
                     navios_pos++;
                 } else {
-                    send(jogador->socket, "!!Erro ao posicionar navio!!\n", strlen("!!Erro ao posicionar navio!!\n"), 0);
+                    send(player->socket, "!!Erro ao posicionar navio!!\n", strlen("!!Erro ao posicionar navio!!\n"), 0);
                 }
             } else {
-                send(jogador->socket, "!!Formato inválido!!\n", strlen("!!Formato inválido!!\n"), 0);
+                send(player->socket, "!!Formato inválido!!\n", strlen("!!Formato inválido!!\n"), 0);
             }
         } else {
-            send(jogador->socket, "!!Comando desconhecido!!\n", strlen("!!Comando desconhecido!!\n"), 0);
+            send(player->socket, "!!Comando desconhecido!!\n", strlen("!!Comando desconhecido!!\n"), 0);
         }
     }
 
     // Fim do posicionamento
-    send(jogador->socket, "**Todos os navios posicionados. Aguardando oponente...**\n",
+    send(player->socket, "**Todos os navios posicionados. Aguardando oponente...**\n",
     strlen("**Todos os navios posicionados. Aguardando oponente...**\n"), 0);
 
     pthread_exit(NULL);
+}
+
+//Recebe o comando JOIN dos jogadores e posiciona navios
+void* recebe_jogador(void* arg) {
+    Jogador* player = (Jogador*) arg;
+    char buffer[1024];
+
+    int n = recv(player->socket, buffer, sizeof(buffer), 0);
+    if (n <= 0) {
+        perror("Erro ao receber JOIN do cliente");
+        close(player->socket);
+        pthread_exit(NULL);
+    }
+    buffer[n] = '\0'; //
+    if (sscanf(buffer, "JOIN %63s", player->nome) != 1) {
+        send(player->socket, "!!Comando JOIN inválido!!\n", 27, 0);
+        close(player->socket);
+        pthread_exit(NULL);
+    }
+
+    // Incrementa número de jogadores prontos com proteção
+    pthread_mutex_lock(&lock);
+    jogadores_prontos++;
+
+    if (jogadores_prontos < 2) {
+        send(player->socket, "AGUARDE JOGADOR\n", 17, 0);
+        pthread_cond_wait(&cond_inicio, &lock);
+    } else {
+        pthread_cond_broadcast(&cond_inicio);
+    }
+
+    pthread_mutex_unlock(&lock);
+
+    // Depois que os dois jogadores deram JOIN imprime
+    send(player->socket, "JOGO INICIADO\n", 15, 0);
+
+    // Inicializa o tabuleiro do jogador
+    inicializa_tabuleiro(player->tab);
+
+    // Posiciona os barcos
+    posicionamento_player(player);
+    return NULL;
 }
 
 int main() {
@@ -259,27 +298,18 @@ int main() {
     send(player1.socket, "<<[Bem vind@ ao jogo Batalha Naval!]>>\n", strlen("<<[Bem vind@ ao jogo Batalha Naval!]>>\n"), 0);
     send(player2.socket, "<<[Bem vind@ ao jogo Batalha Naval!]>>\n", strlen("<<[Bem vind@ ao jogo Batalha Naval!]>>\n"), 0);
 
-
-    // Lendo os comandos do jogador
-    char buffer[1024];
-    recv(server_fd, buffer, sizeof(buffer), 0);
-
-    int tipoCmd = recebe_comando(buffer);
-
-    processa_tipoCmd(tipoCmd, player1, player2); //Processa e reaje conforme o cmd recebido
-
-    // Inicializa tabuleiros
-    inicializa_tabuleiro(player1.tab);
-    inicializa_tabuleiro(player2.tab);
-
     // Cria uma thread para cada jogador
     pthread_t threads[2];
-    pthread_create(&threads[0], NULL, posicionamento_thread, &player1);
-    pthread_create(&threads[1], NULL, posicionamento_thread, &player2);
+    pthread_create(&threads[0], NULL, recebe_jogador, &player1);
+    pthread_create(&threads[1], NULL, recebe_jogador, &player2);
 
     // Aguarda ambas terminarem
     pthread_join(threads[0], NULL);
     pthread_join(threads[1], NULL);
+
+
+    // Decide qual jogador eh o jogador 1 e 2
+    // atribui_jogadores(player1.socket, player2.socket); //Sorteia qual dos jogadores eh o jogador 1 e 2  
 
     // Fecha os sockets dos jogadores
     close(player1.socket);

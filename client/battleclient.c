@@ -13,13 +13,27 @@
 void le_posicionamento_navios(int sock){
     char buffer[1024];
     char tipo[20];
-    int x, y;
+
+    int x, y, total_coord;
     char orientacao;
+
+    total_coord = 0;
     
     // Loop para enviar comandos de posicionamento
-    for (int i = 0; i < MAX_NAVIOS; i++) {
-        printf("Digite o navio e a posição desejada (tipo x y orientacao H/V): ");
-        scanf("%s %d %d %c", tipo, &x, &y, &orientacao);
+    while(total_coord < MAX_NAVIOS) {
+        printf("**Comece a posicionar os navios**\n");
+        printf("- Use o formato: POS <tipo> <x> <y> <H/V>\n");
+
+        fgets(buffer, sizeof(buffer), stdin);
+            
+        //Remove o \n do final do buffer
+        buffer[strcspn(buffer, "\r\n")] = '\0';
+        
+        //Verifica de a entrada esta no formato esperado
+        if (sscanf(buffer, "POS %s %d %d %c", tipo, &x, &y, &orientacao) != 4) {
+            printf("Entrada inválida. Use o formato: POS <tipo> <x> <y> <H/V>\n");
+            continue;
+        }
 
         // Monta a mensagem no formato esperado: "POS tipo x y Oriantacao"
         snprintf(buffer, sizeof(buffer), "POS %s %d %d %c", tipo, x, y, orientacao);
@@ -27,16 +41,17 @@ void le_posicionamento_navios(int sock){
         // Envia para o servidor
         send(sock, buffer, strlen(buffer), 0);
 
-        // Recebe resposta do servidor
+        // RLimpa o buffer e recebe resposta do servidor
         memset(buffer, 0, sizeof(buffer));
         int n = recv(sock, buffer, sizeof(buffer) - 1, 0);
         if (n <= 0) {
             printf("Servidor desconectado.\n");
             break;
         }
-        // buffer[n] = '\0';
 
+        buffer[n] = '\0';
         printf("Servidor: %s\n", buffer);
+        total_coord++;
 
     }
 
@@ -45,13 +60,6 @@ void le_posicionamento_navios(int sock){
 
 int main() {
 
-    // inicializa_tabuleiro(tabuleiro1);
-    // inicializa_tabuleiro(tabuleiro2);
-
-    // printf("[TABULEIRO]\n");
-    // print_tabuleiro(tabuleiro1);
-    // printf("[TABULEIRO 2]\n");
-    // print_tabuleiro(tabuleiro2);
     
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     struct sockaddr_in serv_addr;
@@ -70,9 +78,24 @@ int main() {
     printf("Digite um comando:\n");
     fgets(nome, sizeof(nome), stdin);
 
+    //Remove o \n do final 
+    nome[strcspn(nome, "\n")] = '\0';
+
     // Envia mensagem JOIN nome
     snprintf(buffer, sizeof(buffer), "JOIN %.22s", nome);
     send(sock, buffer, strlen(buffer), 0);
+
+    // Aguarda resposta do servidor
+    while(1){
+        memset(buffer, 0, sizeof(buffer));
+        recv(sock, buffer, sizeof(buffer) - 1, 0);
+        printf("Servidor: %s\n", buffer);
+
+        // Sai do loop somente se os dois jogadores deram JOIN
+        if (strstr(buffer, "JOGO INICIADO") != NULL) {
+            break;
+        }
+    }
 
     //Le a entrada(posicionamento) do cliente
     le_posicionamento_navios(sock);
