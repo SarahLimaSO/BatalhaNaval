@@ -18,11 +18,12 @@ void le_posicionamento_navios(int sock){
     char orientacao;
 
     total_coord = 0;
+
     
     // Loop para enviar comandos de posicionamento
     while(total_coord < MAX_NAVIOS) {
-        printf("**Comece a posicionar os navios**\n");
-        printf("- Use o formato: POS <tipo> <x> <y> <H/V>\n");
+        printf("**Posicione os navios**\n");
+        printf("- Use o formato: POS <tipo> <x> <y> <H/V>\n\n");
 
         fgets(buffer, sizeof(buffer), stdin);
             
@@ -88,13 +89,19 @@ int main() {
     // Aguarda resposta do servidor
     while(1){
         memset(buffer, 0, sizeof(buffer));
-        recv(sock, buffer, sizeof(buffer) - 1, 0);
-        printf("Servidor: %s\n", buffer);
+    int n = recv(sock, buffer, sizeof(buffer) - 1, 0);
+    if (n <= 0) {
+        printf("Conexão fechada pelo servidor ou erro.\n");
+        break; //Caso caia nessa linha seria bom n executar as outras
+    }
 
-        // Sai do loop somente se os dois jogadores deram JOIN
-        if (strstr(buffer, "JOGO INICIADO") != NULL) {
-            break;
-        }
+    // Coloca \0 no fim da string
+    buffer[n] = '\0';
+    printf("Servidor: %s\n", buffer);
+
+    if (strstr(buffer, "JOGO INICIADO") != NULL) {
+        break;
+    }
     }
 
     //Le a entrada(posicionamento) do cliente
@@ -103,3 +110,6 @@ int main() {
     close(sock);
     return 0;
 }
+
+
+// OBS!!!!!!! um dos clientes ja rodando bem mas o q recebe aguarde o outro jogador n para de aguardar!

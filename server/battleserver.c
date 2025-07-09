@@ -63,116 +63,87 @@ void inicializa_tabuleiro(char tab[L][C]){
     }
 }
 
-// Imprime tabuleiro
-void print_tabuleiro(char tab[L][C]){
+//Transforma o tabuleiro em str para que possa ser passado ao cliente
+void tabuleiro_em_str(char tab[L][C], char* tab_str){
 
-    //Identificando a numeracao das colunas
-    
-    printf("  ");
-    for(int i = 0; i < C; i++){
-        printf("  %d ", i+1);
+    char line[1024];
+    strcpy(tab_str, "\n   ");
+    for (int col = 0; col < C; col++) {
+        char num[10];
+        sprintf(num, " %2d ", col + 1);
+        strcat(tab_str, num);
     }
-    putchar('\n');
+    strcat(tab_str, "\n");
 
-    //Identificando as linhas do tabuleiro
-    for(int i = 0; i < L; i++){
-        
-        printf("%c ", i+65); //Usando a tabela ascii para imprimir as letras
-       
-        // Imprimindo o tabuleiro
+    for (int i = 0; i < L; i++) {
+        sprintf(line, "%c  ", 'A' + i); //Usa a tabela ascii
+        strcat(tab_str, line);
+
         for (int j = 0; j < C; j++) {
-            putchar('|');
-            printf(" %c ", tab[i][j]);
+            sprintf(line, "| %c ", tab[i][j]);
+            strcat(tab_str, line);
         }
-        putchar('|');
-        putchar('\n');
+        strcat(tab_str, "|\n");
     }
 }
 
 int posiciona_navio(char tab[L][C], char tipo[20], int x, int y, char orientacao){
+
+    int tamanho;
+    char simb;
+
+    // Verifica qual navio foi escolhido
+    if (strcasecmp(tipo, "SUBMARINO") == 0) {
+        tamanho = 1;
+        simb = '*';
+    } else if (strcasecmp(tipo, "FRAGATA") == 0) {
+        tamanho = 2;
+        simb = '$';
+    } else if (strcasecmp(tipo, "DESTROYER") == 0) {
+        tamanho = 3;
+        simb = '#';
+    }
+    else return 0;
     
     //Falta tratar caso de sobreposicao !!!!!!
     if (x < 0 || x >= L || y < 0 || y >= C) {
         return 0; 
     }
-    
-    if (strncmp(tipo, "SUBMARINO", strlen("SUBMARINO")) == 0) tab[x][y] = '*';
-    
-    if (strncmp(tipo, "FRAGATA", strlen("FRAGATA")) == 0){
-        
-        if(orientacao == 'H'){
-            if(y+1 < C){
-                tab[x][y] = '$';
-                tab[x][y+1] = '$';
-                return 1;
-            }
-            else{
-                tab[x][y-1] = '$';
-                tab[x][y] = '$';
-                return 1;
-            }
+
+    // Verifica limites e sobreposição
+    if (orientacao == 'H' || orientacao == 'h') {
+        if (y + tamanho > C) return 0;
+
+        for (int i = 0; i < tamanho; i++) {
+            if (tab[x][y + i] != '~') return 0; // Já tem navio
         }
-        else{
-            if(x+1 < L){
-                tab[x][y] = '$';
-                tab[x+1][y] = '$';
-                return 1;
-            }
-            else{
-                tab[x-1][y] = '$';
-                tab[x][y] = '$';
-                return 1;
-            }
+
+        for (int i = 0; i < tamanho; i++) {
+            tab[x][y + i] = simb;
         }
-    }
-    if (strncmp(tipo, "DESTROYER", strlen("DESTROYER")) == 0){
-        
-        if(orientacao == 'H'){
-            if(y+2 < C){
-                tab[x][y] = '#';
-                tab[x][y+1] = '#';
-                tab[x][y+2] = '#';
-                return 1;
-            }
-            else if(y+1 < C){
-                tab[x][y-1] = '#';
-                tab[x][y] = '#';
-                tab[x][y+1] = '#';
-                return 1;
-            }
-            else{
-                tab[x][y-2] = '#';
-                tab[x][y-1] = '#';
-                tab[x][y] = '#';
-                return 1;
-            }
+
+    } 
+    else if (orientacao == 'V' || orientacao == 'v') {
+        if (x + tamanho > L) return 0;
+
+        for (int i = 0; i < tamanho; i++) {
+
+            // Caso a posicao ja estaja ocupada
+            if (tab[x + i][y] != '~') return 0; 
         }
-        else{
-            if(x+2 < L){
-                tab[x][y] = '#';
-                tab[x+1][y] = '#';
-                tab[x+2][y] = '#';
-                return 1;
-            }
-            else if(x+1 < L){
-                tab[x-1][y] = '#';
-                tab[x][y] = '#';
-                tab[x+1][y] = '#';
-                return 1;
-            }
-            else{
-                tab[x-2][y] = '#';
-                tab[x-1][y] = '#';
-                tab[x][y] = '#';
-                return 1;
-            }
+
+        for (int i = 0; i < tamanho; i++) {
+            tab[x + i][y] = simb;
         }
-    }
-    return 0;
+
+    } else return 0;
+
+    return 1;
 }
 
 void posicionamento_player(Jogador* player ) {
     char buffer[1024];
+    char tab_str[2048];
 
     int total_navios = MAX_DEST + MAX_FRAG + MAX_SUB;
     int navios_pos = 0; //Numero de navios ja posicionados
@@ -196,6 +167,9 @@ void posicionamento_player(Jogador* player ) {
 
             if (sscanf(buffer, "POS %s %d %d %c", tipo, &x, &y, &orientacao) == 4) {
 
+                x -= 1;
+                y -= 1;
+    
                 //Recebe o retorno indicando se o posicionamento foi bem sucedido
                 int sucesso = posiciona_navio(player->tab, tipo, x, y, orientacao);
                 if (sucesso) {
@@ -210,6 +184,9 @@ void posicionamento_player(Jogador* player ) {
         } else {
             send(player->socket, "!!Comando desconhecido!!\n", strlen("!!Comando desconhecido!!\n"), 0);
         }
+
+        tabuleiro_em_str(player->tab, tab_str);
+        send(player->socket, tab_str, strlen(tab_str), 0);
     }
 
     // Fim do posicionamento
@@ -223,6 +200,7 @@ void posicionamento_player(Jogador* player ) {
 void* recebe_jogador(void* arg) {
     Jogador* player = (Jogador*) arg;
     char buffer[1024];
+    char tab_str[2048];
 
     int n = recv(player->socket, buffer, sizeof(buffer), 0);
     if (n <= 0) {
@@ -230,12 +208,7 @@ void* recebe_jogador(void* arg) {
         close(player->socket);
         pthread_exit(NULL);
     }
-    buffer[n] = '\0'; //
-    if (sscanf(buffer, "JOIN %63s", player->nome) != 1) {
-        send(player->socket, "!!Comando JOIN inválido!!\n", 27, 0);
-        close(player->socket);
-        pthread_exit(NULL);
-    }
+    sscanf(buffer, "JOIN %63s", player->nome);
 
     // Incrementa número de jogadores prontos com proteção
     pthread_mutex_lock(&lock);
@@ -248,16 +221,21 @@ void* recebe_jogador(void* arg) {
         pthread_cond_broadcast(&cond_inicio);
     }
 
-    pthread_mutex_unlock(&lock);
-
     // Depois que os dois jogadores deram JOIN imprime
     send(player->socket, "JOGO INICIADO\n", 15, 0);
 
     // Inicializa o tabuleiro do jogador
     inicializa_tabuleiro(player->tab);
 
+    // Manda o tabuleiro inicial para o cliente
+    tabuleiro_em_str(player->tab, tab_str);
+    send(player->socket, tab_str, strlen(tab_str), 0);
+
+
     // Posiciona os barcos
     posicionamento_player(player);
+    pthread_mutex_unlock(&lock);
+
     return NULL;
 }
 
@@ -273,6 +251,7 @@ int main() {
     address.sin_addr.s_addr = INADDR_ANY;
     address.sin_port = htons(PORT);
 
+    // Deixa a port aser reutilizada (perguntar do prof como ele quer q resolvamos esse problema !!!!!!!!!!)
     int opt = 1;
     setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
