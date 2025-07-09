@@ -45,13 +45,13 @@ void atribui_jogadores(int player1, int player2){
         send(player1, "Você é o Jogador 2\n", 21, 0);
     }
 }
-void processa_tipoCmd(int tipoCmd, int player1, int player2){
+void processa_tipoCmd(int tipoCmd, Jogador player1, Jogador player2){
     switch(tipoCmd){
         case 1:
-            send(player1, "JOGO INICIADO!\n", strlen("JOGO INICIADO!\n"), 0);
-            send(player2, "JOGO INICIADO!\n", strlen("JOGO INICIADO!\n"), 0);
+            send(player1.socket, "JOGO INICIADO!\n", strlen("JOGO INICIADO!\n"), 0);
+            send(player2.socket, "JOGO INICIADO!\n", strlen("JOGO INICIADO!\n"), 0);
 
-            atribui_jogadores(player1, player2); //Sorteia qual dos jogadores eh o jogador 1 e 2  
+            atribui_jogadores(player1.socket, player2.socket); //Sorteia qual dos jogadores eh o jogador 1 e 2  
             break;
         case 2:
 

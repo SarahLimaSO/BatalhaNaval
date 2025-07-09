@@ -41,8 +41,8 @@ int main() {
     pthread_create(&thread[0], NULL, posiciona_barcos,tabuleiro1);
     pthread_create(&thread[1], NULL, posiciona_barcos, tabuleiro2);
 
-    pthread_join(&thread[0], NULL);
-    pthread_join(&thread[1], NULL);
+    pthread_join(thread[0], NULL);
+    pthread_join(thread[1], NULL);
 
     // Libera recursos da thread ao terminar
     pthread_detach(thread[0]); 
