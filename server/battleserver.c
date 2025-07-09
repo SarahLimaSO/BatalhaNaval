@@ -10,16 +10,6 @@
 #include <string.h>
 
 #define PORT 8080
-#define L 8 //Numero de Linhas do tabuleiro
-#define C 8 //Numero de Colunas do tabuleiro
-#define MAX_SUB 1 //Numero maximo de submarinos
-#define MAX_FRAG 2 //Numero maximo de fragatas
-#define MAX_DEST  1 //Numero maximo de destroyers
-
-typedef struct{
-    int socket;
-    char tab[L][C]; //Tabuleiro do jogador
-}Jogador;
 
 char info[1024];
 
@@ -232,42 +222,6 @@ void* posicionamento_thread(void* arg) {
     pthread_exit(NULL);
 }
 
-// void* posicionamento_thread(void* arg) {
-//     Jogador* jogador = (Jogador*) arg;
-//     char buffer[1024];
-
-//     int max_barcos = MAX_DEST + MAX_FRAG + MAX_SUB;
-//     int i = 0;
-
-//     //Deve receber a informacao do servidor acerca do posicionamento e processa-la
-//     while (i <= max_barcos) {
-//         memset(buffer, 0, sizeof(buffer));
-//         recv(jogador->socket, buffer, sizeof(buffer), 0);
-
-//         if (strncmp(buffer, "POS", 3) == 0) {
-//             char tipo[20];
-//             int x, y;
-//             char orientacao;
-//             sscanf(buffer, "POS %s %d %d %c", tipo, &x, &y, &orientacao);
-
-//             //Recebe se o posicionamento foi bem sucedido ou n
-//             int resultado = posiciona_navio(jogador->tab, tipo, x, y, orientacao);
-
-//             if (resultado == 1) {
-//                 send(jogador->socket, "**Navio posicionado**\n", strlen("**Navio posicionado**\n"), 0);
-//                 i++;
-//             } else {
-//                 send(jogador->socket, "!!Erro ao posicionar navio!!\n", strlen("!!Erro ao posicionar navio!!\n"), 0);
-//             }
-//         }
-//     }
-
-//     printf("Todos os navios foram posicionados!\n");
-//     print_tabuleiro(jogador->tab); // Exibe o tabuleiro final
-
-//     pthread_exit(NULL);
-// }
-
 int main() {
 
     int server_fd;
@@ -280,12 +234,15 @@ int main() {
     address.sin_addr.s_addr = INADDR_ANY;
     address.sin_port = htons(PORT);
 
+    int opt = 1;
+    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+
     if (bind(server_fd, (struct sockaddr*)&address, sizeof(address)) < 0) {
-        perror("bind\n");
+        perror("bind error\n");
         exit(1);
     }
     if (listen(server_fd, 2) < 0) {
-        perror("listen\n");
+        perror("listen error\n");
         exit(1);
     } // até dois jogadores
 
