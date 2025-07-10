@@ -57,12 +57,12 @@ void le_posicionamento_navios(int sock){
         // Verifica se a resposta do servidor confirma o posicionamento
         if (strstr(buffer, "**Navio posicionado**") != NULL) {
             total_coord++; // só avança se o posicionamento for aceito
-        } else {
+        } 
+        else if (strstr(buffer, "!!Limite máximo") == NULL) {
             printf("Posicionamento inválido. Tente novamente.\n");
         }
     }
 
-    printf("Posicionamento finalizado. Aguarde o adversário...\n");
 }
 
 int main() {
@@ -79,7 +79,7 @@ int main() {
 
     connect(sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
     read(sock, buffer, MAX_MSG);
-    printf("Servidor: %s\n", buffer);
+    printf("\nServidor: %s\n", buffer);
 
     //Le o comando JOIN <nome>
     printf("Para começar a jogar digite JOIN <nome>:\n");
@@ -89,7 +89,7 @@ int main() {
     nome[strcspn(nome, "\n")] = '\0';
 
     // Envia mensagem JOIN nome
-    snprintf(buffer, sizeof(buffer), "JOIN %.22s\n", nome);
+    snprintf(buffer, sizeof(buffer), "JOIN %.22s", nome);
     send(sock, buffer, strlen(buffer), 0);
 
     // Aguarda resposta do servidor
@@ -105,7 +105,7 @@ int main() {
         buffer[n] = '\0';
 
         //Imprime a msg JOGO INICIADO + o tabuleiro inicial
-        printf("Servidor: %s\n", buffer);
+        printf("\nServidor: %s\n", buffer);
         if (strstr(buffer, "JOGO INICIADO") != NULL) {
             break;
         }
@@ -114,12 +114,25 @@ int main() {
     //Le a entrada(posicionamento) do cliente
     le_posicionamento_navios(sock);
 
+    // Após terminar os posicionamentos, espera mensagem de confirmação final do servidor
+    memset(buffer, 0, sizeof(buffer));
+    int n = recv(sock, buffer, sizeof(buffer) - 1, 0);
+    if (n > 0) {
+        buffer[n] = '\0';
+        printf("Servidor: %s\n", buffer);
+    }
+
     close(sock);
     return 0;
 }
 
 
 //PROBLEMAS A SEREM resolvidos:
-// -precisa imprimir o tabuleiro antes de pedir o le_posicionamento_navios
-// - precisa imprimir o tabuleiro dps de posicionar projogador ver
-// O servidor ja ta passando esse tabuleiro como str pro cliente, so falta o cliente ler(receber)
+// AJEITAR ESSA IMPRESSAO P FICAR MELHOR
+// **Posicione os navios**
+// - Use o formato: POS <tipo> <x> <y> <H/V>
+
+// POS FRAGATA  2 2  
+// Entrada inválida. Use o formato: POS <tipo> <x> <y> <H/V>
+// **Posicione os navios**
+// - Use o formato: POS <tipo> <x> <y> <H/V>

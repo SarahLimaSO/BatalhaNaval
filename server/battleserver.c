@@ -12,7 +12,9 @@
 #define PORT 8080
 
 char info[1024];
-int jogadores_prontos = 0;
+int jogadores_prontos = 0; // Indica quantos jogadores deram JOIN
+int jogador_navios_ok = 0; //Indica quantos jogadores terminaram o seu posicionamento
+
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cond_inicio = PTHREAD_COND_INITIALIZER;
 
@@ -65,7 +67,7 @@ void inicializa_tabuleiro(char tab[L][C]){
 }
 
 //Transforma o tabuleiro em str para que possa ser passado ao cliente
-void tabuleiro_em_str(char tab[L][C], char* tab_str){
+void tabuleiro_em_str(Jogador* player, char* tab_str){
 
     char line[1024];
     strcpy(tab_str, "\n   ");
@@ -77,32 +79,38 @@ void tabuleiro_em_str(char tab[L][C], char* tab_str){
     strcat(tab_str, "\n");
 
     for (int i = 0; i < L; i++) {
-        sprintf(line, "%c  ", 'A' + i); //Usa a tabela ascii
-        strcat(tab_str, line);
 
+        // Se a fase de posicionamento foi concluida ele imprime o tabuleiro com letras
+        if (player->posicionamento_ok){
+            sprintf(line, "%c  ", 'A' + i);
+        }//Se nao ele imrime com indices em numero
+        else{
+            sprintf(line, "%d  ", i + 1);
+            strcat(tab_str, line);
+        }
         for (int j = 0; j < C; j++) {
-            sprintf(line, "| %c ", tab[i][j]);
+            sprintf(line, "| %c ", player->tab[i][j]);
             strcat(tab_str, line);
         }
         strcat(tab_str, "|\n");
     }
 }
 
-int posiciona_navio(char tab[L][C], char tipo[20], int x, int y, char orientacao){
-    // int total_frag, total_dest, total_sub;
+int posiciona_navio(Jogador *player, char tipo[20], int x, int y, char orientacao){
     int tamanho;
     char simb;
 
-    // total_dest = total_frag = total_sub = 0;
-
     // Verifica qual navio foi escolhido
     if (strcasecmp(tipo, "SUBMARINO") == 0) {
+        if (player->total_sub >= MAX_SUB) return -1; //Sinaliza que numero maximo de barcos desse tipo foi atingido
         tamanho = 1;
         simb = '*';
     } else if (strcasecmp(tipo, "FRAGATA") == 0) {
+        if (player->total_frag >= MAX_FRAG) return -1; //Sinaliza que numero maximo de barcos desse tipo foi atingido
         tamanho = 2;
         simb = '$';
     } else if (strcasecmp(tipo, "DESTROYER") == 0) {
+        if (player->total_dest >= MAX_DEST) return -1; //Sinaliza que numero maximo de barcos desse tipo foi atingido
         tamanho = 3;
         simb = '#';
     }
@@ -117,11 +125,20 @@ int posiciona_navio(char tab[L][C], char tipo[20], int x, int y, char orientacao
         if (y + tamanho > C) return 0;
 
         for (int i = 0; i < tamanho; i++) {
-            if (tab[x][y + i] != '~') return 0; // Já tem navio
+            if (player->tab[x][y + i] != '~') return 0; // Já tem navio
         }
 
         for (int i = 0; i < tamanho; i++) {
-            tab[x][y + i] = simb;
+            player->tab[x][y + i] = simb;
+        }
+
+        // Incrementa o numero de barcos colocados de acordo com o seu tipo
+        if (strcasecmp(tipo, "SUBMARINO") == 0) {
+            player->total_sub++;
+        } else if (strcasecmp(tipo, "FRAGATA") == 0) {
+            player->total_frag++;
+        } else if (strcasecmp(tipo, "DESTROYER") == 0) {
+            player->total_dest++;
         }
 
     } 
@@ -131,11 +148,20 @@ int posiciona_navio(char tab[L][C], char tipo[20], int x, int y, char orientacao
         for (int i = 0; i < tamanho; i++) {
 
             // Caso a posicao ja estaja ocupada
-            if (tab[x + i][y] != '~') return 0; 
+            if (player->tab[x + i][y] != '~') return 0; 
         }
 
         for (int i = 0; i < tamanho; i++) {
-            tab[x + i][y] = simb;
+            player->tab[x + i][y] = simb;
+        }
+
+        // Incrementa o numero de barcos colocados de acordo com o seu tipo
+        if (strcasecmp(tipo, "SUBMARINO") == 0) {
+            player->total_sub++;
+        } else if (strcasecmp(tipo, "FRAGATA") == 0) {
+            player->total_frag++;
+        } else if (strcasecmp(tipo, "DESTROYER") == 0) {
+            player->total_dest++;
         }
 
     } else return 0;
@@ -147,9 +173,11 @@ void posicionamento_player(Jogador* player ) {
     char buffer[1024];
     char tab_str[2048];
 
+    // PREFERIDO
+    
     int total_navios = MAX_DEST + MAX_FRAG + MAX_SUB;
     int navios_pos = 0; //Numero de navios ja posicionados
-
+   
     while (navios_pos < total_navios) {
         memset(buffer, 0, sizeof(buffer));
 
@@ -160,6 +188,7 @@ void posicionamento_player(Jogador* player ) {
         }
 
         buffer[n] = '\0';
+        buffer[strcspn(buffer, "\r\n")] = 0;  // Remove \n ou \r\n (possiveis caracteres indesejados)
 
         // Esperado: "POS SUBMARINO 4 3 H"
         if (strncmp(buffer, "POS", 3) == 0) {
@@ -173,30 +202,50 @@ void posicionamento_player(Jogador* player ) {
                 y -= 1;
     
                 //Recebe o retorno indicando se o posicionamento foi bem sucedido
-                int sucesso = posiciona_navio(player->tab, tipo, x, y, orientacao);
+                int sucesso = posiciona_navio(player, tipo, x, y, orientacao);
 
-                if (sucesso) {
-                    tabuleiro_em_str(player->tab, tab_str);
+                if (sucesso == 1) {
+                    tabuleiro_em_str(player, tab_str);
                     snprintf(msg, sizeof(msg), "**Navio posicionado**\n%s", tab_str);
                     send(player->socket, msg, strlen(msg), 0);
                     navios_pos++;
-                } else {
-                    tabuleiro_em_str(player->tab, tab_str);
+                } 
+                else if (sucesso == -1) {
+                    tabuleiro_em_str(player, tab_str);
+                    snprintf(msg, sizeof(msg), "!!Limite máximo de %s atingido!!\n%s", tipo, tab_str);
+                    send(player->socket, msg, strlen(msg), 0);
+                } 
+                else {
+                    tabuleiro_em_str(player, tab_str);
                     snprintf(msg, sizeof(msg), "!!Erro ao posicionar navio!!\n%s", tab_str);
                     send(player->socket, msg, strlen(msg), 0);
-                }
-            } else {
+                } 
+            }
+            else {
                 send(player->socket, "!!Formato inválido!!\n", strlen("!!Formato inválido!!\n"), 0);
             }
-        } else {
+        } 
+        else {
             send(player->socket, "!!Comando desconhecido!!\n", strlen("!!Comando desconhecido!!\n"), 0);
         }
     }
 
     // Fim do posicionamento
-    send(player->socket, "**Todos os navios posicionados. Aguardando oponente...**\n",
-    strlen("**Todos os navios posicionados. Aguardando oponente...**\n"), 0);
+    pthread_mutex_lock(&lock);
+    jogador_navios_ok++;
 
+    player->posicionamento_ok = 1; //Sinaliza q esse jogador terminou de posicionar os seu navios
+    
+    if (jogador_navios_ok == 1) {
+        send(player->socket,
+            "**Todos os navios posicionados. Aguardando oponente...**\n",
+            strlen("**Todos os navios posicionados. Aguardando oponente...**\n"), 0);
+    } else {
+        send(player->socket,
+            "**Todos os navios posicionados.**\n",
+            strlen("**Todos os navios posicionados.**\n"), 0);
+    }
+    pthread_mutex_unlock(&lock);
     pthread_exit(NULL);
 }
 
@@ -205,6 +254,8 @@ void* recebe_jogador(void* arg) {
     Jogador* player = (Jogador*) arg;
     char buffer[1024];
     char tab_str[2048];
+
+    player->posicionamento_ok = 0; //Inicializa a flag do jogador indicando que o posicionamento ainda nao foi concluido
 
     int n = recv(player->socket, buffer, sizeof(buffer), 0);
     if (n <= 0) {
@@ -234,12 +285,17 @@ void* recebe_jogador(void* arg) {
 
     // Inicializa o tabuleiro do jogador
     inicializa_tabuleiro(player->tab);
-    tabuleiro_em_str(player->tab, tab_str); //Transforma o tabuleiro em str
+    tabuleiro_em_str(player, tab_str); //Transforma o tabuleiro em str
     
     char msgInicial[4096];
 
     sprintf(msgInicial, "JOGO INICIADO\n [Seu tabuleiro]%s", tab_str);
     send(player->socket, msgInicial,strlen(msgInicial), 0); // Manda a msg JOGO INICIADO + tabuleiro inicial
+
+    // Inicializa o total de navios posicionados pelo jogador
+    player->total_sub = 0;
+    player->total_frag = 0;
+    player->total_dest = 0;
     
     // Posiciona os barcos
     posicionamento_player(player);

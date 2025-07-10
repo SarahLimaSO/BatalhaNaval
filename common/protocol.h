@@ -29,5 +29,7 @@ char msg[4096]; //Vetor auxiliar para envio de mensagens
 typedef struct{
     int socket;
     char nome[22];
+    int total_frag, total_dest, total_sub; // Total de navios posicionados de cada tipo
+    int posicionamento_ok; //Sinaliza se o jogador ja terminou o seu posicionamento
     char tab[L][C]; //Tabuleiro do jogador
 }Jogador;
