@@ -89,19 +89,26 @@ int main() {
     // Aguarda resposta do servidor
     while(1){
         memset(buffer, 0, sizeof(buffer));
-    int n = recv(sock, buffer, sizeof(buffer) - 1, 0);
-    if (n <= 0) {
-        printf("Conexão fechada pelo servidor ou erro.\n");
-        break; //Caso caia nessa linha seria bom n executar as outras
-    }
+        int n = recv(sock, buffer, sizeof(buffer) - 1, 0);
+        if (n <= 0) {
+            printf("Conexão fechada pelo servidor ou erro.\n");
+            break; //Caso caia nessa linha seria bom n executar as outras
+        }
 
-    // Coloca \0 no fim da string
-    buffer[n] = '\0';
-    printf("Servidor: %s\n", buffer);
+        // Coloca \0 no fim da string
+        buffer[n] = '\0';
+        printf("Servidor: %s\n", buffer);
 
-    if (strstr(buffer, "JOGO INICIADO") != NULL) {
-        break;
-    }
+        if (strstr(buffer, "JOGO INICIADO") != NULL) {
+            // // Depois de receber JOGO INICIADO, recebe o tabuleiro
+            // memset(buffer, 0, sizeof(buffer));
+            // n = recv(sock, buffer, sizeof(buffer) - 1, 0);
+            // if (n > 0) {
+            //     buffer[n] = '\0';
+            //     printf("Seu tabuleiro:\n%s\n", buffer);
+            // }
+            break;
+        }
     }
 
     //Le a entrada(posicionamento) do cliente
@@ -112,4 +119,7 @@ int main() {
 }
 
 
-// OBS!!!!!!! um dos clientes ja rodando bem mas o q recebe aguarde o outro jogador n para de aguardar!
+//PROBLEMAS A SEREM resolvidos:
+// -precisa imprimir o tabuleiro antes de pedir o le_posicionamento_navios
+// - precisa imprimir o tabuleiro dps de posicionar projogador ver
+// O servidor ja ta passando esse tabuleiro como str pro cliente, so falta o cliente ler(receber)

@@ -208,6 +208,7 @@ void* recebe_jogador(void* arg) {
         perror("Erro ao receber JOIN do cliente");
         close(player->socket);
         pthread_exit(NULL);
+        exit(1);
     }
     sscanf(buffer, "JOIN %63s", player->nome);
 
