@@ -18,6 +18,8 @@ int jogador_navios_ok = 0; //Indica quantos jogadores terminaram o seu posiciona
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cond_inicio = PTHREAD_COND_INITIALIZER;
 int jogadores_ready = 0;
+int result_sorteio = 0; //guarda o valor sorteado para a escolha do jogador 1 e 2
+int fez_sorteio = 0; // registra se foi feito o sorteio ou nao
 
 int processa_comando(char cmd[1024], Jogador* player){
 
@@ -312,6 +314,46 @@ void posicionamento_player(Jogador* player ) {
     pthread_exit(NULL);
 }
 
+void turnos_jogo(Jogador* player1, Jogador* player2, int jogador_inicial) {
+    int jogador_atual = jogador_inicial;
+    char buffer[1024];
+
+    while (1) {
+        Jogador *atual = (jogador_atual == 1) ? player1 : player2;
+        Jogador *outro = (jogador_atual == 1) ? player2 : player1;
+
+        // Informações de turno
+        send(atual->socket, "\n>> Seu turno! Use: FIRE <x> <y>\n", 34, 0);
+        send(outro->socket, "\n>> Aguarde o turno do outro jogador...\n", 40, 0);
+
+        // Recebe jogada
+        memset(buffer, 0, sizeof(buffer));
+        int n = recv(atual->socket, buffer, sizeof(buffer) - 1, 0);
+        if (n <= 0) {
+            printf("Jogador desconectado.\n");
+            break;
+        }
+
+        buffer[n] = '\0';
+        buffer[strcspn(buffer, "\r\n")] = 0;
+
+        int x, y;
+        if (sscanf(buffer, "FIRE %d %d", &x, &y) == 2) {
+            printf("Jogador %d disparou em (%d, %d)\n", jogador_atual, x, y);
+
+            // TODO: lógica de acerto/erro etc.
+            send(atual->socket, ">> Jogada registrada!\n", 23, 0);
+            send(outro->socket, ">> O adversário jogou. Agora é seu turno!\n", 43, 0);
+
+            // Troca de jogador
+            jogador_atual = (jogador_atual == 1) ? 2 : 1;
+        } else {
+            send(atual->socket, "!! Comando inválido. Use: FIRE <x> <y>\n", 39, 0);
+        }
+    }
+}
+
+
 //Recebe o comando JOIN dos jogadores e posiciona navios
 void* recebe_jogador(void* arg) {
     Jogador* player = (Jogador*) arg;
@@ -344,15 +386,14 @@ void* recebe_jogador(void* arg) {
     }
     pthread_mutex_unlock(&lock);
 
-    // Depois que os dois jogadores deram JOIN
-
     // Inicializa o tabuleiro do jogador
     inicializa_tabuleiro(player->tab);
     tabuleiro_em_str(player, tab_str); //Transforma o tabuleiro em str
     
     char msgInicial[4096];
 
-    sprintf(msgInicial, "JOGO INICIADO\n [Seu tabuleiro]%s", tab_str);
+    // Envia msg aos jogadores informando o inicio do jogo, o tabuleiro inicial, e se ele eh jogador 1 ou 2
+    sprintf(msgInicial, "JOGO INICIADO\n [Seu tabuleiro]%s\nVocê é o jogador %d\n", tab_str, player->id);
     send(player->socket, msgInicial,strlen(msgInicial), 0); // Manda a msg JOGO INICIADO + tabuleiro inicial
 
     // Inicializa o total de navios posicionados pelo jogador
@@ -407,6 +448,17 @@ int main() {
     send(player1.socket, "<<[Bem vind@ ao jogo Batalha Naval!]>>\n", strlen("<<[Bem vind@ ao jogo Batalha Naval!]>>\n"), 0);
     send(player2.socket, "<<[Bem vind@ ao jogo Batalha Naval!]>>\n", strlen("<<[Bem vind@ ao jogo Batalha Naval!]>>\n"), 0);
 
+    // Faz o sorteio pra decidir qual jogador eh o 1 e 2
+    int sort = sorteia_player();  // retorna 0 ou 1
+
+    if (sort == 0) {
+        player1.id = 1;  // jogador 1
+        player2.id = 2;  // jogador 2
+    } else {
+        player1.id = 2;
+        player2.id = 1;
+    }
+
     // Cria uma thread para cada jogador
     pthread_t threads[2];
     pthread_create(&threads[0], NULL, recebe_jogador, &player1);
@@ -416,9 +468,8 @@ int main() {
     pthread_join(threads[0], NULL);
     pthread_join(threads[1], NULL);
 
-
-    // Decide qual jogador eh o jogador 1 e 2
-    // atribui_jogadores(player1.socket, player2.socket); //Sorteia qual dos jogadores eh o jogador 1 e 2  
+    int iniciante = (sort == 0) ? 1 : 2;
+    turnos_jogo(&player1, &player2, iniciante);
 
     // Fecha os sockets dos jogadores
     close(player1.socket);

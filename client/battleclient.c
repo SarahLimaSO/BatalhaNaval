@@ -22,9 +22,10 @@ void le_posicionamento_navios(int sock){
     
     // Loop para enviar comandos de posicionamento
     while(total_coord < MAX_NAVIOS) {
+
         printf("**Posicione os navios**\n");
         printf("- Use o formato: POS <tipo> <x> <y> <H/V>\n\n");
-
+      
         fgets(buffer, sizeof(buffer), stdin);
             
         //Remove o \n do final do buffer
@@ -62,8 +63,8 @@ void le_posicionamento_navios(int sock){
             printf("Posicionamento inválido. Tente novamente.\n");
         }
     }
-
 }
+
 
 void prepara_inicio_jogo(int sock) {
     char buffer[1024];
@@ -124,19 +125,18 @@ int main() {
     send(sock, buffer, strlen(buffer), 0);
 
     // Aguarda resposta do servidor
-    while(1){
+    while (1) {
         memset(buffer, 0, sizeof(buffer));
         int n = recv(sock, buffer, sizeof(buffer) - 1, 0);
         if (n <= 0) {
             printf("Conexão fechada pelo servidor ou erro.\n");
-           exit(1);
+            exit(1);
         }
 
-        // Coloca \0 no fim da string
         buffer[n] = '\0';
-
-        //Imprime a msg JOGO INICIADO + o tabuleiro inicial
         printf("\nServidor: %s\n", buffer);
+
+        // Só começa o posicionamento logo após o "JOGO INICIADO"
         if (strstr(buffer, "JOGO INICIADO") != NULL) {
             break;
         }

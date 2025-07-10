@@ -31,5 +31,6 @@ typedef struct{
     char nome[22];
     int total_frag, total_dest, total_sub; // Total de navios posicionados de cada tipo
     int posicionamento_ok; //Sinaliza se o jogador ja terminou o seu posicionamento
+    int id; //Indica se o jogador eh o 1 ou 2
     char tab[L][C]; //Tabuleiro do jogador
 }Jogador;
