@@ -42,18 +42,24 @@ void le_posicionamento_navios(int sock){
         // Envia para o servidor
         send(sock, buffer, strlen(buffer), 0);
 
-        // RLimpa o buffer e recebe resposta do servidor
+        // Limpa o buffer e recebe resposta do servidor
         memset(buffer, 0, sizeof(buffer));
         int n = recv(sock, buffer, sizeof(buffer) - 1, 0);
         if (n <= 0) {
             printf("Servidor desconectado.\n");
             break;
         }
-
         buffer[n] = '\0';
-        printf("Servidor: %s\n", buffer);
-        total_coord++;
 
+        printf("Servidor:\n%s\n", buffer);
+        
+
+        // Verifica se a resposta do servidor confirma o posicionamento
+        if (strstr(buffer, "**Navio posicionado**") != NULL) {
+            total_coord++; // só avança se o posicionamento for aceito
+        } else {
+            printf("Posicionamento inválido. Tente novamente.\n");
+        }
     }
 
     printf("Posicionamento finalizado. Aguarde o adversário...\n");
@@ -83,7 +89,7 @@ int main() {
     nome[strcspn(nome, "\n")] = '\0';
 
     // Envia mensagem JOIN nome
-    snprintf(buffer, sizeof(buffer), "JOIN %.22s", nome);
+    snprintf(buffer, sizeof(buffer), "JOIN %.22s\n", nome);
     send(sock, buffer, strlen(buffer), 0);
 
     // Aguarda resposta do servidor
@@ -92,21 +98,15 @@ int main() {
         int n = recv(sock, buffer, sizeof(buffer) - 1, 0);
         if (n <= 0) {
             printf("Conexão fechada pelo servidor ou erro.\n");
-            break; //Caso caia nessa linha seria bom n executar as outras
+           exit(1);
         }
 
         // Coloca \0 no fim da string
         buffer[n] = '\0';
-        printf("Servidor: %s\n", buffer);
 
+        //Imprime a msg JOGO INICIADO + o tabuleiro inicial
+        printf("Servidor: %s\n", buffer);
         if (strstr(buffer, "JOGO INICIADO") != NULL) {
-            // // Depois de receber JOGO INICIADO, recebe o tabuleiro
-            // memset(buffer, 0, sizeof(buffer));
-            // n = recv(sock, buffer, sizeof(buffer) - 1, 0);
-            // if (n > 0) {
-            //     buffer[n] = '\0';
-            //     printf("Seu tabuleiro:\n%s\n", buffer);
-            // }
             break;
         }
     }

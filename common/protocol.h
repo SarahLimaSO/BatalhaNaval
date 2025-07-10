@@ -24,6 +24,7 @@
 #define MAX_DEST  1 //Numero maximo de destroyers
 
 int MAX_NAVIOS = MAX_DEST + MAX_FRAG + MAX_SUB;
+char msg[4096]; //Vetor auxiliar para envio de mensagens
 
 typedef struct{
     int socket;

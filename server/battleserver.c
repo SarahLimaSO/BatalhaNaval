@@ -89,9 +89,11 @@ void tabuleiro_em_str(char tab[L][C], char* tab_str){
 }
 
 int posiciona_navio(char tab[L][C], char tipo[20], int x, int y, char orientacao){
-
+    // int total_frag, total_dest, total_sub;
     int tamanho;
     char simb;
+
+    // total_dest = total_frag = total_sub = 0;
 
     // Verifica qual navio foi escolhido
     if (strcasecmp(tipo, "SUBMARINO") == 0) {
@@ -106,7 +108,6 @@ int posiciona_navio(char tab[L][C], char tipo[20], int x, int y, char orientacao
     }
     else return 0;
     
-    //Falta tratar caso de sobreposicao !!!!!!
     if (x < 0 || x >= L || y < 0 || y >= C) {
         return 0; 
     }
@@ -173,11 +174,16 @@ void posicionamento_player(Jogador* player ) {
     
                 //Recebe o retorno indicando se o posicionamento foi bem sucedido
                 int sucesso = posiciona_navio(player->tab, tipo, x, y, orientacao);
+
                 if (sucesso) {
-                    send(player->socket, "**Navio posicionado**\n", strlen("**Navio posicionado**\n"), 0);
+                    tabuleiro_em_str(player->tab, tab_str);
+                    snprintf(msg, sizeof(msg), "**Navio posicionado**\n%s", tab_str);
+                    send(player->socket, msg, strlen(msg), 0);
                     navios_pos++;
                 } else {
-                    send(player->socket, "!!Erro ao posicionar navio!!\n", strlen("!!Erro ao posicionar navio!!\n"), 0);
+                    tabuleiro_em_str(player->tab, tab_str);
+                    snprintf(msg, sizeof(msg), "!!Erro ao posicionar navio!!\n%s", tab_str);
+                    send(player->socket, msg, strlen(msg), 0);
                 }
             } else {
                 send(player->socket, "!!Formato inválido!!\n", strlen("!!Formato inválido!!\n"), 0);
@@ -185,9 +191,6 @@ void posicionamento_player(Jogador* player ) {
         } else {
             send(player->socket, "!!Comando desconhecido!!\n", strlen("!!Comando desconhecido!!\n"), 0);
         }
-
-        tabuleiro_em_str(player->tab, tab_str);
-        send(player->socket, tab_str, strlen(tab_str), 0);
     }
 
     // Fim do posicionamento
@@ -227,16 +230,17 @@ void* recebe_jogador(void* arg) {
     }
     pthread_mutex_unlock(&lock);
 
-    // Depois que os dois jogadores deram JOIN imprime
-    send(player->socket, "JOGO INICIADO\n", 15, 0);
+    // Depois que os dois jogadores deram JOIN
 
     // Inicializa o tabuleiro do jogador
     inicializa_tabuleiro(player->tab);
-
-    // Manda o tabuleiro inicial para o cliente
     tabuleiro_em_str(player->tab, tab_str); //Transforma o tabuleiro em str
-    send(player->socket, tab_str, strlen(tab_str), 0);
+    
+    char msgInicial[4096];
 
+    sprintf(msgInicial, "JOGO INICIADO\n [Seu tabuleiro]%s", tab_str);
+    send(player->socket, msgInicial,strlen(msgInicial), 0); // Manda a msg JOGO INICIADO + tabuleiro inicial
+    
     // Posiciona os barcos
     posicionamento_player(player);
 
@@ -257,7 +261,10 @@ int main() {
 
     // Deixa a port aser reutilizada (perguntar do prof como ele quer q resolvamos esse problema !!!!!!!!!!)
     int opt = 1;
-    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+        perror("setsockopt(SO_REUSEADDR) failed");
+        exit(EXIT_FAILURE);
+    }
 
     if (bind(server_fd, (struct sockaddr*)&address, sizeof(address)) < 0) {
         perror("bind error\n");
