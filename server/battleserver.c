@@ -314,46 +314,6 @@ void posicionamento_player(Jogador* player ) {
     pthread_exit(NULL);
 }
 
-void turnos_jogo(Jogador* player1, Jogador* player2, int jogador_inicial) {
-    int jogador_atual = jogador_inicial;
-    char buffer[1024];
-
-    while (1) {
-        Jogador *atual = (jogador_atual == 1) ? player1 : player2;
-        Jogador *outro = (jogador_atual == 1) ? player2 : player1;
-
-        // Informações de turno
-        send(atual->socket, "\n>> Seu turno! Use: FIRE <x> <y>\n", 34, 0);
-        send(outro->socket, "\n>> Aguarde o turno do outro jogador...\n", 40, 0);
-
-        // Recebe jogada
-        memset(buffer, 0, sizeof(buffer));
-        int n = recv(atual->socket, buffer, sizeof(buffer) - 1, 0);
-        if (n <= 0) {
-            printf("Jogador desconectado.\n");
-            break;
-        }
-
-        buffer[n] = '\0';
-        buffer[strcspn(buffer, "\r\n")] = 0;
-
-        int x, y;
-        if (sscanf(buffer, "FIRE %d %d", &x, &y) == 2) {
-            printf("Jogador %d disparou em (%d, %d)\n", jogador_atual, x, y);
-
-            // TODO: lógica de acerto/erro etc.
-            send(atual->socket, ">> Jogada registrada!\n", 23, 0);
-            send(outro->socket, ">> O adversário jogou. Agora é seu turno!\n", 43, 0);
-
-            // Troca de jogador
-            jogador_atual = (jogador_atual == 1) ? 2 : 1;
-        } else {
-            send(atual->socket, "!! Comando inválido. Use: FIRE <x> <y>\n", 39, 0);
-        }
-    }
-}
-
-
 //Recebe o comando JOIN dos jogadores e posiciona navios
 void* recebe_jogador(void* arg) {
     Jogador* player = (Jogador*) arg;
@@ -405,6 +365,104 @@ void* recebe_jogador(void* arg) {
     posicionamento_player(player);
 
     return NULL;
+}
+
+// VErifica se a coordenada eh valida e a processa
+int processa_tiro(Jogador *oponente, int x, int y, char *resposta) {
+    if (x < 0 || x >= L || y < 0 || y >= C) {
+        strcpy(resposta, "Coordenadas inválidas. Tente novamente.\n");
+        return -1;
+    }
+
+    char alvo = oponente->tab[x][y];
+
+    if (alvo == '~') {
+        oponente->tab[x][y] = 'o'; // erro
+        strcpy(resposta, "**ÁGUA! Você errou o tiro.**\n");
+        return 0;
+    } 
+    else if (alvo == '*' || alvo == '$' || alvo == '#') {
+        oponente->tab[x][y] = 'x'; // acerto
+        strcpy(resposta, "**BOOM! Você acertou um navio!**\n");
+        return 1;
+    } 
+    else {
+        strcpy(resposta, "Você já atirou aqui. Tente outra posição.\n");
+        return -1;
+    }
+}
+
+int game_over(Jogador *player) {
+    for (int i = 0; i < L; i++) {
+        for (int j = 0; j < C; j++) {
+            if (player->tab[i][j] == '*' || player->tab[i][j] == '$' || player->tab[i][j] == '#') {
+                return 0; // ainda tem navios em jogo
+            }
+        }
+    }
+    return 1; // nenhum navio restante
+}
+
+void turnos_jogo(Jogador* player1, Jogador* player2, int jogador_inicial) {
+    int jogador_atual = jogador_inicial;
+    char buffer[1024];
+    char resposta[256];
+    char tab_str[4096];  // buffer para tabuleiro
+    int fim_jogo = 0;
+
+    while (!fim_jogo) {
+        int socket_atual = (jogador_atual == 1) ? player1->socket : player2->socket;
+        int socket_oponente = (jogador_atual == 1) ? player2->socket : player1->socket;
+        Jogador* oponente = (jogador_atual == 1) ? player2 : player1;
+
+        // Informa quem joga
+        snprintf(msg, sizeof(msg), "PLAY %d\n", jogador_atual);
+        send(socket_atual, msg, strlen(msg), 0);
+
+        memset(buffer, 0, sizeof(buffer));
+        int n = recv(socket_atual, buffer, sizeof(buffer) - 1, 0);
+        if (n <= 0) break;
+        buffer[n] = '\0';
+
+        int x, y;
+        if (sscanf(buffer, "FIRE %d %d", &x, &y) == 2) {
+            x -= 1;
+            y -= 1;
+
+            int resultado = processa_tiro(oponente, x, y, resposta);
+
+            if (resultado == -1) {
+                snprintf(msg, sizeof(msg), "%s", resposta);
+                send(socket_atual, msg, strlen(msg), 0);
+                continue;
+            }
+
+            const char *resultado_cmd = (resultado == 1) ? "HIT\n" : "MISS\n";
+
+            send(socket_atual, resultado_cmd, strlen(resultado_cmd), 0);
+            send(socket_oponente, resultado_cmd, strlen(resultado_cmd), 0);
+
+            // Envia o tabuleiro atualizado para ambos os jogadores
+            tabuleiro_em_str(player1, tab_str);
+            send(player1->socket, tab_str, strlen(tab_str), 0);
+
+            tabuleiro_em_str(player2, tab_str);
+            send(player2->socket, tab_str, strlen(tab_str), 0);
+
+            if (game_over(oponente)) {
+                send(socket_atual, "WIN\nEND\n", 8, 0);
+                send(socket_oponente, "LOSE\nEND\n", 9, 0);
+                fim_jogo = 1;
+                break;
+            }
+
+            // Alterna o jogador da vez
+            jogador_atual = (jogador_atual == 1) ? 2 : 1;
+        } else {
+            snprintf(msg, sizeof(msg), "Comando inválido. Use: FIRE <x> <y>\n");
+            send(socket_atual, msg, strlen(msg), 0);
+        }
+    }
 }
 
 int main() {
