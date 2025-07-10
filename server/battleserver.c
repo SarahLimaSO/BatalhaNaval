@@ -48,7 +48,8 @@ int processa_comando(char cmd[1024], Jogador* player){
     return 0;
 }
 
-int sorteia_player(int player1, int player2){
+// Sorteia qual jogador sera o 1 e 2
+int sorteia_player(){
     srand(time(NULL));
     return rand() % 2; 
 }
@@ -215,11 +216,15 @@ void* recebe_jogador(void* arg) {
     jogadores_prontos++;
 
     if (jogadores_prontos < 2) {
-        send(player->socket, "AGUARDE JOGADOR\n", 17, 0);
+        send(player->socket, "AGUARDE JOGADOR\n", strlen("AGUARDE JOGADOR\n"), 0);
+
+        // Espera até que o outro jogador esteja pronto
         pthread_cond_wait(&cond_inicio, &lock);
     } else {
+        // Se o segundo jogador estiver pronto libera todas as threads
         pthread_cond_broadcast(&cond_inicio);
     }
+    pthread_mutex_unlock(&lock);
 
     // Depois que os dois jogadores deram JOIN imprime
     send(player->socket, "JOGO INICIADO\n", 15, 0);
@@ -228,13 +233,11 @@ void* recebe_jogador(void* arg) {
     inicializa_tabuleiro(player->tab);
 
     // Manda o tabuleiro inicial para o cliente
-    tabuleiro_em_str(player->tab, tab_str);
+    tabuleiro_em_str(player->tab, tab_str); //Transforma o tabuleiro em str
     send(player->socket, tab_str, strlen(tab_str), 0);
-
 
     // Posiciona os barcos
     posicionamento_player(player);
-    pthread_mutex_unlock(&lock);
 
     return NULL;
 }
