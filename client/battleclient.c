@@ -76,7 +76,7 @@ int main() {
     printf("Servidor: %s\n", buffer);
 
     //Le o comando JOIN <nome>
-    printf("Digite um comando:\n");
+    printf("Para começar a jogar digite JOIN <nome>:\n");
     fgets(nome, sizeof(nome), stdin);
 
     //Remove o \n do final 
