@@ -17,6 +17,7 @@ int jogador_navios_ok = 0; //Indica quantos jogadores terminaram o seu posiciona
 
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cond_inicio = PTHREAD_COND_INITIALIZER;
+int jogadores_ready = 0;
 
 int processa_comando(char cmd[1024], Jogador* player){
 
@@ -93,6 +94,42 @@ void tabuleiro_em_str(Jogador* player, char* tab_str){
             strcat(tab_str, line);
         }
         strcat(tab_str, "|\n");
+    }
+}
+
+// Espera o jogador dar ready
+void jogador_ready(Jogador* player) {
+    char buffer[1024];
+
+    while (1) {
+        memset(buffer, 0, sizeof(buffer));
+        int n = recv(player->socket, buffer, sizeof(buffer) - 1, 0);
+        if (n <= 0) {
+            printf("Cliente desconectado ao esperar READY.\n");
+            return;
+        }
+        buffer[n] = '\0';
+        buffer[strcspn(buffer, "\r\n")] = 0;
+
+        if (strcasecmp(buffer, "READY") == 0) {
+            pthread_mutex_lock(&lock);
+            jogadores_ready++;
+
+            if (jogadores_ready == 1) {
+                send(player->socket, "**AGUARDANDO ADVERSÁRIO...**\n", 30, 0);
+                while (jogadores_ready < 2) {
+                    pthread_cond_wait(&cond_inicio, &lock);
+                }
+            } else if (jogadores_ready == 2) {
+                pthread_cond_broadcast(&cond_inicio);
+            }
+
+            pthread_mutex_unlock(&lock);
+            send(player->socket, "**INÍCIO DO JOGO!**\n", 21, 0);
+            break;
+        } else {
+            send(player->socket, "!!Comando inválido! Use READY!!\n", 33, 0);
+        }
     }
 }
 
@@ -173,12 +210,9 @@ void posicionamento_player(Jogador* player ) {
     char buffer[1024];
     char tab_str[2048];
 
-    // PREFERIDO
-    
-    int total_navios = MAX_DEST + MAX_FRAG + MAX_SUB;
-    int navios_pos = 0; //Numero de navios ja posicionados
-   
-    while (navios_pos < total_navios) {
+    int msg_enviada = 0; // Flag para enviar a mensagem de confirmação apenas uma vez
+
+    while (1) {
         memset(buffer, 0, sizeof(buffer));
 
         int n = recv(player->socket, buffer, sizeof(buffer) - 1, 0);
@@ -188,64 +222,93 @@ void posicionamento_player(Jogador* player ) {
         }
 
         buffer[n] = '\0';
-        buffer[strcspn(buffer, "\r\n")] = 0;  // Remove \n ou \r\n (possiveis caracteres indesejados)
+        buffer[strcspn(buffer, "\r\n")] = 0;  // Remove \r e \n
 
-        // Esperado: "POS SUBMARINO 4 3 H"
-        if (strncmp(buffer, "POS", 3) == 0) {
+        // Comando READY - Verifica se todos os navios foram posicionados
+        if (strcasecmp(buffer, CMD_READY) == 0) {
+            if (player->total_sub == MAX_SUB && player->total_frag == MAX_FRAG && player->total_dest == MAX_DEST) {
+
+                pthread_mutex_lock(&lock);
+                player->posicionamento_ok = 1;
+                jogador_navios_ok++;
+
+                if (jogador_navios_ok < 2) {
+                    // Primeiro jogador a digitar READY espera o segundo
+                    snprintf(msg, sizeof(msg), "**AGUARDANDO ADVERSÁRIO...**\n");
+                    send(player->socket, msg, strlen(msg), 0);
+
+                    // Espera o outro jogador dar READY
+                    while (jogador_navios_ok < 2) {
+                        pthread_cond_wait(&cond_inicio, &lock);
+                    }
+
+                } else {
+                    // Segundo jogador libera o outro
+                    pthread_cond_broadcast(&cond_inicio);
+                }
+
+                pthread_mutex_unlock(&lock);
+
+                // Ambos os jogadores recebem início do jogo
+                snprintf(msg, sizeof(msg), "**INÍCIO DO JOGO!**\n");
+                send(player->socket, msg, strlen(msg), 0);
+                break;
+
+            } else {
+                snprintf(msg, sizeof(msg),
+                    "!!Você precisa posicionar todos os navios antes de enviar READY!!\n"
+                    "- Submarinos: %d/%d\n- Fragatas: %d/%d\n- Destroyers: %d/%d\n",
+                    player->total_sub, MAX_SUB,
+                    player->total_frag, MAX_FRAG,
+                    player->total_dest, MAX_DEST
+                );
+                send(player->socket, msg, strlen(msg), 0);
+                continue;
+            }
+        }
+
+        // Comando POS
+        if (strncmp(buffer, CMD_POS, 3) == 0) {
             char tipo[20];
             int x, y;
             char orientacao;
 
             if (sscanf(buffer, "POS %s %d %d %c", tipo, &x, &y, &orientacao) == 4) {
-
                 x -= 1;
                 y -= 1;
-    
-                //Recebe o retorno indicando se o posicionamento foi bem sucedido
+
                 int sucesso = posiciona_navio(player, tipo, x, y, orientacao);
+                tabuleiro_em_str(player, tab_str);
 
                 if (sucesso == 1) {
-                    tabuleiro_em_str(player, tab_str);
                     snprintf(msg, sizeof(msg), "**Navio posicionado**\n%s", tab_str);
                     send(player->socket, msg, strlen(msg), 0);
-                    navios_pos++;
+
+                    if ((player->total_sub == MAX_SUB && player->total_frag == MAX_FRAG && player->total_dest == MAX_DEST) && !msg_enviada) {
+                        snprintf(msg, sizeof(msg), "**Todos os navios posicionados. Envie READY para confirmar.**\n");
+                        send(player->socket, msg, strlen(msg), 0);
+                        msg_enviada = 1;
+                    }
                 } 
                 else if (sucesso == -1) {
-                    tabuleiro_em_str(player, tab_str);
                     snprintf(msg, sizeof(msg), "!!Limite máximo de %s atingido!!\n%s", tipo, tab_str);
                     send(player->socket, msg, strlen(msg), 0);
                 } 
                 else {
-                    tabuleiro_em_str(player, tab_str);
-                    snprintf(msg, sizeof(msg), "!!Erro ao posicionar navio!!\n%s", tab_str);
+                    snprintf(msg, sizeof(msg), "!!Erro ao posicionar navio!!\n%s\nPosicionamento inválido. Tente novamente.\n", tab_str);
                     send(player->socket, msg, strlen(msg), 0);
                 } 
-            }
-            else {
+            } else {
                 send(player->socket, "!!Formato inválido!!\n", strlen("!!Formato inválido!!\n"), 0);
             }
         } 
-        else {
+        else if (strcasecmp(buffer, CMD_READY) != 0) {
             send(player->socket, "!!Comando desconhecido!!\n", strlen("!!Comando desconhecido!!\n"), 0);
         }
     }
 
     // Fim do posicionamento
-    pthread_mutex_lock(&lock);
-    jogador_navios_ok++;
-
-    player->posicionamento_ok = 1; //Sinaliza q esse jogador terminou de posicionar os seu navios
-    
-    if (jogador_navios_ok == 1) {
-        send(player->socket,
-            "**Todos os navios posicionados. Aguardando oponente...**\n",
-            strlen("**Todos os navios posicionados. Aguardando oponente...**\n"), 0);
-    } else {
-        send(player->socket,
-            "**Todos os navios posicionados.**\n",
-            strlen("**Todos os navios posicionados.**\n"), 0);
-    }
-    pthread_mutex_unlock(&lock);
+    jogador_ready(player);
     pthread_exit(NULL);
 }
 

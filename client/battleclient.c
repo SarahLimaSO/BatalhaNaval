@@ -65,6 +65,37 @@ void le_posicionamento_navios(int sock){
 
 }
 
+void prepara_inicio_jogo(int sock) {
+    char buffer[1024];
+
+    printf("\nDigite READY para começar o jogo:\n");
+    while (1) {
+        fgets(buffer, sizeof(buffer), stdin);
+        buffer[strcspn(buffer, "\r\n")] = 0;
+
+        if (strcasecmp(buffer, "READY") == 0) {
+            send(sock, buffer, strlen(buffer), 0);
+            break;
+        } else {
+            printf("Digite READY para continuar.\n");
+        }
+    }
+
+    // Aguarda mensagens do servidor após o READY
+    while (1) {
+        memset(buffer, 0, sizeof(buffer));
+        int n = recv(sock, buffer, sizeof(buffer) - 1, 0);
+        if (n <= 0) break;
+
+        buffer[n] = '\0';
+        printf("\nServidor: %s\n", buffer);
+
+        if (strstr(buffer, "**INÍCIO DO JOGO!**") != NULL) {
+            break;
+        }
+    }
+}
+
 int main() {
 
     
@@ -114,13 +145,8 @@ int main() {
     //Le a entrada(posicionamento) do cliente
     le_posicionamento_navios(sock);
 
-    // Após terminar os posicionamentos, espera mensagem de confirmação final do servidor
-    memset(buffer, 0, sizeof(buffer));
-    int n = recv(sock, buffer, sizeof(buffer) - 1, 0);
-    if (n > 0) {
-        buffer[n] = '\0';
-        printf("Servidor: %s\n", buffer);
-    }
+    // Envia o ready e espera inicio do jogo
+    prepara_inicio_jogo(sock);
 
     close(sock);
     return 0;
