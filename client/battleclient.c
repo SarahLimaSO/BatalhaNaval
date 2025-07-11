@@ -8,6 +8,8 @@
 
 #define PORT 8080
 
+#define CMD_WAIT "AGUARDE O TURNO DO OUTRO JOGADOR"
+
 // Variáveis globais para o tabuleiro de ataque
 char tabuleiro_ataque[L][C];
 pthread_mutex_t a_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -62,31 +64,42 @@ void* recebe_mensagens(void* arg) {
         buffer[n] = '\0';
 
         pthread_mutex_lock(&a_lock);
-        if (strncmp(buffer, CMD_HIT, strlen(CMD_HIT)) == 0) {
-            if (ultimo_tiro_x != -1) tabuleiro_ataque[ultimo_tiro_x][ultimo_tiro_y] = '!';
-            imprime_tabuleiro_ataque();
+        if (strncmp(buffer, "Seu turno!", strlen("Seu turno!")) == 0) {
+            printf("\n**É SEU TURNO!** Use FIRE <linha> <coluna> (ex: FIRE 1 1)\n> ");
+        } else if (strncmp(buffer, "Aguarde o turno do outro jogador", strlen("Aguarde o turno do outro jogador")) == 0) {
+            printf("\nServidor: Aguarde o turno do outro jogador.\n");
+        } else if (strncmp(buffer, "HIT!", strlen("HIT!")) == 0) {
             printf("\nServidor: HIT!\n");
-        } else if (strncmp(buffer, CMD_MISS, strlen(CMD_MISS)) == 0) {
-            if (ultimo_tiro_x != -1) tabuleiro_ataque[ultimo_tiro_x][ultimo_tiro_y] = 'X';
-            imprime_tabuleiro_ataque();
+        } else if (strncmp(buffer, "MISS!", strlen("MISS!")) == 0) {
             printf("\nServidor: MISS!\n");
-        } else if (strncmp(buffer, CMD_SUNK, strlen(CMD_SUNK)) == 0) {
-            if (ultimo_tiro_x != -1) tabuleiro_ataque[ultimo_tiro_x][ultimo_tiro_y] = '!';
-            imprime_tabuleiro_ataque();
-            printf("\nServidor: SUNK!\n");
-        } else if (strncmp(buffer, CMD_PLAY, strlen(CMD_PLAY)) == 0) {
-             printf("\nÉ seu turno! Use FIRE <linha> <coluna> (ex: FIRE 1 1)\n> ");
-        } else if (strcmp(buffer, CMD_END) == 0) {
+        } else if (strcmp(buffer, "Jogo terminado!") == 0) {
             printf("O jogo terminou. Conexão encerrada.\n");
             close(sock);
             exit(0);
         } else {
-             printf("\nServidor: %s\n", buffer);
+            printf("\nServidor: %s\n", buffer);
         }
         pthread_mutex_unlock(&a_lock);
         fflush(stdout);
     }
     return NULL;
+}
+
+void inicia_jogo(int sock) {
+    char buffer[MAX_MSG];
+    pthread_t recv_thread;
+    pthread_create(&recv_thread, NULL, recebe_mensagens, &sock);
+
+    while (1) {
+        printf("> ");
+        fgets(buffer, sizeof(buffer), stdin);
+        buffer[strcspn(buffer, "\r\n")] = '\0';
+
+        if (strncmp(buffer, "FIRE", 4) == 0) {
+            send(sock, buffer, strlen(buffer), 0);
+        }
+    }
+    pthread_join(recv_thread, NULL);
 }
 
 
@@ -134,28 +147,6 @@ void prepara_inicio_jogo(int sock) {
              printf("Servidor: %s\n", buffer);
         }
     }
-}
-
-void inicia_jogo(int sock) {
-    char buffer[MAX_MSG];
-    pthread_t recv_thread;
-    pthread_create(&recv_thread, NULL, recebe_mensagens, &sock);
-    printf("\nO jogo começou! Aguarde seu turno para atacar.\n");
-
-    while (1) {
-        printf("> ");
-        fgets(buffer, sizeof(buffer), stdin);
-        buffer[strcspn(buffer, "\r\n")] = '\0';
-        if (strncmp(buffer, CMD_FIRE, strlen(CMD_FIRE)) == 0) {
-            pthread_mutex_lock(&a_lock);
-            sscanf(buffer, "FIRE %d %d", &ultimo_tiro_x, &ultimo_tiro_y);
-            ultimo_tiro_x--; 
-            ultimo_tiro_y--;
-            pthread_mutex_unlock(&a_lock);
-            send(sock, buffer, strlen(buffer), 0);
-        }
-    }
-    pthread_join(recv_thread, NULL);
 }
 
 int main() {

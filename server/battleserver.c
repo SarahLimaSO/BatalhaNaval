@@ -240,14 +240,15 @@ void turnos_jogo(Jogador* player1, Jogador* player2, int jogador_inicial) {
         Jogador* atual = (jogador_atual == player1->id) ? player1 : player2;
         Jogador* oponente = (jogador_atual == player1->id) ? player2 : player1;
 
-        snprintf(msg, sizeof(msg), "%s %d", CMD_PLAY, atual->id);
+        // Informa que é o turno do jogador atual
+        snprintf(msg, sizeof(msg), "**É SEU TURNO!** Use FIRE <linha> <coluna> (ex: FIRE 1 1)");
         send(atual->socket, msg, strlen(msg), 0);
-        
-        char msg_aguarde[100];
-        snprintf(msg_aguarde, sizeof(msg_aguarde), "Aguarde o turno de %s...", oponente->nome);
-        send(oponente->socket, msg_aguarde, strlen(msg_aguarde), 0);
 
+        // Informa ao adversário para aguardar
+        snprintf(msg, sizeof(msg), "\nAguarde o turno de %s...", atual->nome);
+        send(oponente->socket, msg, strlen(msg), 0);
 
+        // Recebe o tiro do jogador atual
         memset(buffer, 0, sizeof(buffer));
         int n = recv(atual->socket, buffer, sizeof(buffer) - 1, 0);
         if (n <= 0) break;
@@ -255,32 +256,33 @@ void turnos_jogo(Jogador* player1, Jogador* player2, int jogador_inicial) {
 
         int x, y;
         if (sscanf(buffer, "FIRE %d %d", &x, &y) == 2) {
-            int resultado = processa_tiro(oponente, x - 1, y - 1, resposta);
+            // Processa o tiro
+            processa_tiro(oponente, x - 1, y - 1, resposta);
 
-            if (resultado == -1) { // Tiro inválido
-                send(atual->socket, resposta, strlen(resposta), 0);
-                continue;
-            }
-            
+            // Envia o resultado do tiro para o jogador atual e para o adversário
             snprintf(msg, sizeof(msg), "%s", resposta);
             send(atual->socket, msg, strlen(msg), 0);
             send(oponente->socket, msg, strlen(msg), 0);
-            
+
+            // Verifica se o jogo acabou
             if (game_over(oponente)) {
                 send(atual->socket, CMD_WIN, strlen(CMD_WIN), 0);
                 send(oponente->socket, CMD_LOSE, strlen(CMD_LOSE), 0);
                 fim_jogo = 1;
+            } else {
+                // Alterna o turno para o próximo jogador
+                jogador_atual = oponente->id;
             }
-            jogador_atual = oponente->id;
         } else {
             snprintf(msg, sizeof(msg), "Comando inválido. Use: FIRE <x> <y>\n");
             send(atual->socket, msg, strlen(msg), 0);
         }
     }
+
+    // Após a conclusão do jogo, encerra a partida para ambos os jogadores
     send(player1->socket, CMD_END, strlen(CMD_END), 0);
     send(player2->socket, CMD_END, strlen(CMD_END), 0);
 }
-
 
 // Thread para cada jogador
 void* recebe_jogador(void* arg) {
@@ -322,22 +324,54 @@ int main() {
     struct sockaddr_in address;
     socklen_t addrlen = sizeof(address);
 
+    // Criação do socket
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_fd < 0) {
+        perror("Erro ao criar o socket");
+        exit(1);
+    }
+
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;
     address.sin_port = htons(PORT);
 
     int opt = 1;
-    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+        perror("Erro ao configurar o socket");
+        exit(1);
+    }
 
-    bind(server_fd, (struct sockaddr*)&address, sizeof(address));
-    listen(server_fd, 2);
+    if (bind(server_fd, (struct sockaddr*)&address, sizeof(address)) < 0) {
+        perror("Erro ao associar o socket");
+        exit(1);
+    }
+
+    if (listen(server_fd, 2) < 0) {
+        perror("Erro ao aguardar conexões");
+        exit(1);
+    }
+
     printf("Servidor aguardando jogadores na porta %d...\n", PORT);
 
+    // Esperando por dois jogadores
     Jogador player1, player2;
+
+    // Aceitando o primeiro jogador
     player1.socket = accept(server_fd, (struct sockaddr*)&address, &addrlen);
+    if (player1.socket < 0) {
+        perror("Erro ao aceitar conexão do jogador 1");
+        exit(1);
+    }
+    printf("Jogador 1 conectado!\n"); 
     send(player1.socket, "<<[Bem vind@ ao jogo Batalha Naval!]>>\n", strlen("<<[Bem vind@ ao jogo Batalha Naval!]>>\n"), 0);
+
+    // Aceitando o segundo jogador
     player2.socket = accept(server_fd, (struct sockaddr*)&address, &addrlen);
+    if (player2.socket < 0) {
+        perror("Erro ao aceitar conexão do jogador 2");
+        exit(1);
+    }
+    printf("Jogador 2 conectado!\n");
     send(player2.socket, "<<[Bem vind@ ao jogo Batalha Naval!]>>\n", strlen("<<[Bem vind@ ao jogo Batalha Naval!]>>\n"), 0);
 
     srand(time(NULL));
@@ -349,7 +383,7 @@ int main() {
         player1.id = 2;
         player2.id = 1;
     }
-    
+
     strcpy(player1.nome, "Player1");
     strcpy(player2.nome, "Player2");
 
@@ -361,10 +395,15 @@ int main() {
     pthread_join(threads[1], NULL);
 
     printf("Ambos os jogadores estão prontos. Iniciando o jogo...\n");
+
+    // Lógica dos turnos
     turnos_jogo(&player1, &player2, (sort == 0) ? player1.id : player2.id);
 
+    // Fechando os sockets dos jogadores e do servidor
     close(player1.socket);
     close(player2.socket);
     close(server_fd);
+
     return 0;
 }
+
