@@ -67,13 +67,8 @@ void* recebe_mensagens(void* arg) {
 
         // Detecta mensagem de turno do jogador
         if (strstr(buffer, "<<PLAY") != NULL && strstr(buffer, "É SEU TURNO!") != NULL) {
-            // Imprime mensagem <<PLAY X>> + turno
             printf("\nServidor: %s\n", buffer);
-
-            // Imprime o tabuleiro de ataque do cliente
             imprime_tabuleiro_ataque();
-
-            // Mostra o prompt para jogar
             printf("\n> ");
             fflush(stdout);
         }
@@ -88,17 +83,25 @@ void* recebe_mensagens(void* arg) {
                 else if (strncmp(buffer, "HIT", 3) == 0)
                     tabuleiro_ataque[ultimo_tiro_x][ultimo_tiro_y] = 'X';
                 else if (strncmp(buffer, "SUNK", 4) == 0)
-                    tabuleiro_ataque[ultimo_tiro_x][ultimo_tiro_y] = 'S'; // Marcar navio afundado
+                    tabuleiro_ataque[ultimo_tiro_x][ultimo_tiro_y] = 'S';
 
                 printf("\nServidor: %s\n", buffer);
-                if (strncmp(buffer, "SUNK", 4) == 0)
-                    printf(">>> Navio AFUNDADO! <<<\n");
+
+                if (strncmp(buffer, "SUNK", 4) == 0) {
+                    printf(">>> SUNK! Navio AFUNDADO! <<<\n");
+                }
             }
             fflush(stdout);
         }
-        // Detecta fim do jogo
-        else if (strcmp(buffer, CMD_END) == 0 || strcmp(buffer, "Jogo terminado!") == 0) {
-            printf("O jogo terminou. Conexão encerrada.\n");
+        else if (strncmp(buffer, CMD_WIN, strlen(CMD_WIN)) == 0) {
+            printf("\n>>>>> WIN! VOCÊ VENCEU! <<<<<\n");
+        }
+        else if (strncmp(buffer, CMD_LOSE, strlen(CMD_LOSE)) == 0) {
+            printf("\nXXXXX LOSE! VOCÊ PERDEU! XXXXX\n");
+        }
+        // Detecta fim do jogo pelo comando END
+        else if (strncmp(buffer, CMD_END, strlen(CMD_END)) == 0) {
+            printf("\nO jogo terminou. Conexão encerrada.\n");
             close(sock);
             exit(0);
         }
