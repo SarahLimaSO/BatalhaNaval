@@ -88,16 +88,20 @@ void* recebe_mensagens(void* arg) {
                 printf("\nServidor: %s\n", buffer);
 
                 if (strncmp(buffer, "SUNK", 4) == 0) {
-                    printf(">>> SUNK! Navio AFUNDADO! <<<\n");
+                    printf(">>> Navio AFUNDADO! <<<\n");
                 }
             }
             fflush(stdout);
         }
         else if (strncmp(buffer, CMD_WIN, strlen(CMD_WIN)) == 0) {
             printf("\n>>>>> WIN! VOCÊ VENCEU! <<<<<\n");
+            close(sock);
+            exit(0);
         }
         else if (strncmp(buffer, CMD_LOSE, strlen(CMD_LOSE)) == 0) {
             printf("\nXXXXX LOSE! VOCÊ PERDEU! XXXXX\n");
+            close(sock);
+            exit(0);
         }
         // Detecta fim do jogo pelo comando END
         else if (strncmp(buffer, CMD_END, strlen(CMD_END)) == 0) {
