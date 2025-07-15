@@ -64,45 +64,50 @@ void* recebe_mensagens(void* arg) {
         buffer[n] = '\0';
 
         pthread_mutex_lock(&a_lock);
+
+        // Detecta mensagem de turno do jogador
         if (strstr(buffer, "<<PLAY") != NULL && strstr(buffer, "É SEU TURNO!") != NULL) {
-            char turno_msg[MAX_MSG];
-            strcpy(turno_msg, buffer);  // salva a mensagem do servidor
+            // Imprime mensagem <<PLAY X>> + turno
+            printf("\nServidor: %s\n", buffer);
 
-            // Espera o servidor mandar o tabuleiro de defesa
-            int n_tab = recv(sock, buffer, sizeof(buffer) - 1, 0);
-            if (n_tab > 0) {
-                buffer[n_tab] = '\0';
-                printf("\n** SEU TABULEIRO DE DEFESA **\n%s", buffer);
-            }
+            // Imprime o tabuleiro de ataque do cliente
+            imprime_tabuleiro_ataque();
 
-            imprime_tabuleiro_ataque();  // Mostra o de ataque
-
-            // Agora imprime exatamente como você quer:
-            printf("\n%s Use FIRE <linha> <coluna>\n> ", turno_msg);
+            // Mostra o prompt para jogar
+            printf("\n> ");
+            fflush(stdout);
         }
-        else if (strncmp(buffer, "Aguarde o turno do outro jogador", strlen("Aguarde o turno do outro jogador")) == 0) {
-            printf("\nServidor: Aguarde o turno do outro jogador.\n");
-        } 
+        else if (strncmp(buffer, "PLAY ", 5) == 0 && strstr(buffer, "Aguarde o turno de") != NULL) {
+            printf("\nServidor: %s\n", buffer);
+            fflush(stdout);
+        }
         else if (strncmp(buffer, "HIT", 3) == 0 || strncmp(buffer, "MISS", 4) == 0 || strncmp(buffer, "SUNK", 4) == 0) {
-            // Atualiza tabuleiro de ataque com base no último tiro
             if (ultimo_tiro_x >= 0 && ultimo_tiro_y >= 0) {
                 if (strncmp(buffer, "MISS", 4) == 0)
                     tabuleiro_ataque[ultimo_tiro_x][ultimo_tiro_y] = 'o';
-                else
+                else if (strncmp(buffer, "HIT", 3) == 0)
                     tabuleiro_ataque[ultimo_tiro_x][ultimo_tiro_y] = 'X';
+                else if (strncmp(buffer, "SUNK", 4) == 0)
+                    tabuleiro_ataque[ultimo_tiro_x][ultimo_tiro_y] = 'S'; // Marcar navio afundado
+
+                printf("\nServidor: %s\n", buffer);
+                if (strncmp(buffer, "SUNK", 4) == 0)
+                    printf(">>> Navio AFUNDADO! <<<\n");
             }
-            printf("\nServidor: %s\n", buffer);
+            fflush(stdout);
         }
-        else if (strcmp(buffer, "Jogo terminado!") == 0) {
+        // Detecta fim do jogo
+        else if (strcmp(buffer, CMD_END) == 0 || strcmp(buffer, "Jogo terminado!") == 0) {
             printf("O jogo terminou. Conexão encerrada.\n");
             close(sock);
             exit(0);
-        } 
-        else {
-            printf("\nServidor: %s\n", buffer);
         }
+        else {
+            printf("\nServidor: %s\n> ", buffer);
+            fflush(stdout);
+        }
+
         pthread_mutex_unlock(&a_lock);
-        fflush(stdout);
     }
     return NULL;
 }

@@ -19,7 +19,7 @@ int jogador_navios_ok = 0;
 void inicializa_tabuleiro(char tab[L][C]);
 void tabuleiro_em_str(Jogador* player, char* tab_str);
 int posiciona_navio(Jogador *player, char tipo[], int x, int y, char orientacao);
-int verifica_afundou(Jogador* oponente, int x, int y);
+int verifica_afundou(Jogador* oponente, char simb);
 int processa_tiro(Jogador *oponente, int x, int y, char *resposta);
 void turnos_jogo(Jogador* player1, Jogador* player2, int jogador_inicial);
 void* recebe_jogador(void* arg);
@@ -61,31 +61,55 @@ int posiciona_navio(Jogador *player, char tipo[], int x, int y, char orientacao)
 
     if (strcasecmp(tipo, "SUBMARINO") == 0) {
         if (player->total_sub >= MAX_SUB) return -1;
-        tamanho = 1; simb = '*';
+        tamanho = 1;
+        simb = '*';
+
     } else if (strcasecmp(tipo, "FRAGATA") == 0) {
         if (player->total_frag >= MAX_FRAG) return -1;
-        tamanho = 2; simb = '$';
+        tamanho = 2;
+
+        // Diferencia as fragatas por símbolo
+        if (player->total_frag == 0)
+            simb = '$';  // Primeira fragata
+        else
+            simb = '&';  // Segunda fragata
+
     } else if (strcasecmp(tipo, "DESTROYER") == 0) {
         if (player->total_dest >= MAX_DEST) return -1;
-        tamanho = 3; simb = '#';
+        tamanho = 3;
+        simb = '#';
+
     } else {
         return 0; // Tipo de navio inválido
     }
 
-    if (x < 0 || x >= L || y < 0 || y >= C) return 0; // Fora do tabuleiro
+    // Validação de coordenadas
+    if (x < 0 || x >= L || y < 0 || y >= C) return 0;
 
+    // Verifica espaço disponível
     if (orientacao == 'H' || orientacao == 'h') {
         if (y + tamanho > C) return 0;
-        for (int i = 0; i < tamanho; i++) if (player->tab[x][y + i] != '~') return 0;
-        for (int i = 0; i < tamanho; i++) player->tab[x][y + i] = simb;
+        for (int i = 0; i < tamanho; i++) {
+            if (player->tab[x][y + i] != '~') return 0;
+        }
+        for (int i = 0; i < tamanho; i++) {
+            player->tab[x][y + i] = simb;
+        }
+
     } else if (orientacao == 'V' || orientacao == 'v') {
         if (x + tamanho > L) return 0;
-        for (int i = 0; i < tamanho; i++) if (player->tab[x + i][y] != '~') return 0;
-        for (int i = 0; i < tamanho; i++) player->tab[x + i][y] = simb;
+        for (int i = 0; i < tamanho; i++) {
+            if (player->tab[x + i][y] != '~') return 0;
+        }
+        for (int i = 0; i < tamanho; i++) {
+            player->tab[x + i][y] = simb;
+        }
+
     } else {
         return 0; // Orientação inválida
     }
 
+    // Atualiza contador de navios posicionados
     if (strcasecmp(tipo, "SUBMARINO") == 0) player->total_sub++;
     else if (strcasecmp(tipo, "FRAGATA") == 0) player->total_frag++;
     else if (strcasecmp(tipo, "DESTROYER") == 0) player->total_dest++;
@@ -94,17 +118,15 @@ int posiciona_navio(Jogador *player, char tipo[], int x, int y, char orientacao)
 }
 
 // Verifica se um navio foi completamente afundado
-int verifica_afundou(Jogador* oponente, int x, int y) {
-    char simb = oponente->tab[x][y]; // Simbolo do navio atingido
-    if(simb != 'X') simb = oponente->tab[x][y]; // Pega o simbolo correto se não for 'X' (acerto)
-    
-    // Procura por partes não atingidas do mesmo navio
+int verifica_afundou(Jogador* oponente, char simb) {
     for (int i = 0; i < L; i++) {
         for (int j = 0; j < C; j++) {
-            if (oponente->tab[i][j] == simb) return 0; // Ainda há partes do navio
+            if (oponente->tab[i][j] == simb) {
+                return 0; // Ainda há partes não atingidas
+            }
         }
     }
-    return 1; // Navio afundado
+    return 1;
 }
 
 // Processa o tiro de um jogador
@@ -117,30 +139,32 @@ int processa_tiro(Jogador *oponente, int x, int y, char *resposta) {
     char alvo = oponente->tab[x][y];
 
     if (alvo == '~') {
-        oponente->tab[x][y] = 'o'; // 'o' para água
+        oponente->tab[x][y] = 'o';
         strcpy(resposta, "MISS");
-        return 0; // Água
-    } else if (alvo == '*' || alvo == '$' || alvo == '#') {
-        char simb_original = oponente->tab[x][y];
-        oponente->tab[x][y] = 'X'; // 'X' para acerto
-        
-        int afundou = 1;
-        for(int i = 0; i < L; i++){
-            for(int j = 0; j < C; j++){
-                if(oponente->tab[i][j] == simb_original) afundou = 0;
-            }
-        }
+        return 0;
+    } else if (alvo == '*' || alvo == '$' || alvo == '#' || alvo == '&') {
+        char simbolo_original = alvo;
+        printf("[DEBUG] Atingido (%d,%d) - Símbolo original: %c\n", x, y, simbolo_original);
+        oponente->tab[x][y] = 'X';
 
-        if (afundou) {
+        if (verifica_afundou(oponente, simbolo_original)) {
+            // Marca todas as partes do navio como 'S'
+            for (int i = 0; i < L; i++) {
+                for (int j = 0; j < C; j++) {
+                    if (oponente->tab[i][j] == 'X') {
+                        oponente->tab[i][j] = 'S';
+                    }
+                }
+            }
             strcpy(resposta, "SUNK");
-            return 2; // Afundou
+            return 2;
         } else {
             strcpy(resposta, "HIT");
-            return 1; // Acerto
+            return 1;
         }
     } else {
         strcpy(resposta, "Você já atirou aqui. Tente outra posição.\n");
-        return -1; // Posição já atacada
+        return -1;
     }
 }
 
@@ -148,7 +172,7 @@ int processa_tiro(Jogador *oponente, int x, int y, char *resposta) {
 int game_over(Jogador *player) {
     for (int i = 0; i < L; i++) {
         for (int j = 0; j < C; j++) {
-            if (player->tab[i][j] == '*' || player->tab[i][j] == '$' || player->tab[i][j] == '#') {
+            if (player->tab[i][j] == '*' || player->tab[i][j] == '$' || player->tab[i][j] == '#' || player->tab[i][j] == '&') {
                 return 0; // Ainda há navios
             }
         }
@@ -229,52 +253,69 @@ void posicionamento_player(Jogador* player) {
     }
 }
 
-
 // Gerencia os turnos do jogo
 void turnos_jogo(Jogador* player1, Jogador* player2, int jogador_inicial) {
     int jogador_atual = jogador_inicial;
-    char buffer[MAX_MSG], resposta[MAX_MSG], msg[MAX_MSG * 4];
+    char buffer[MAX_MSG], resposta[MAX_MSG];
     int fim_jogo = 0;
 
     while (!fim_jogo) {
         Jogador* atual = (jogador_atual == player1->id) ? player1 : player2;
         Jogador* oponente = (jogador_atual == player1->id) ? player2 : player1;
 
-        // Informa o jogador atual que é seu turno
-        snprintf(msg, sizeof(msg), "\n<<PLAY %d>> **É SEU TURNO!** Use FIRE <linha> <coluna> (ex: FIRE 1 1)\n", atual->id);
+        char msg[MAX_MSG * 4];
+
+        // Mensagem para o jogador da vez
+        snprintf(msg, sizeof(msg), "<<PLAY %d>>\nÉ SEU TURNO! Use FIRE <linha> <coluna> (ex: FIRE 1 1)\n", atual->id);
         send(atual->socket, msg, strlen(msg), 0);
 
-        // Envia o tabuleiro do jogador atual (defesa)
-        char tab_str[MAX_MSG * 4];
-        tabuleiro_em_str(atual, tab_str);
-        send(atual->socket, tab_str, strlen(tab_str), 0);
-
-        // Agora informa o adversário para aguardar o turno
-        snprintf(msg, sizeof(msg), "\n<<PLAY %d>> Aguarde o turno de %s...\n", oponente->id, atual->nome);
+        // Mensagem para o oponente
+        snprintf(msg, sizeof(msg), "<<PLAY %d>>\nAguarde o turno de %s...\n", atual->id, atual->nome);
         send(oponente->socket, msg, strlen(msg), 0);
 
-        // Recebe o tiro do jogador atual
+        // Recebe o comando do jogador
         memset(buffer, 0, sizeof(buffer));
         int n = recv(atual->socket, buffer, sizeof(buffer) - 1, 0);
-        if (n <= 0) break;  // Cliente desconectou ou erro
+        if (n <= 0) break;
         buffer[n] = '\0';
 
         int x, y;
         if (sscanf(buffer, "FIRE %d %d", &x, &y) == 2) {
-            // Processa o tiro
             processa_tiro(oponente, x - 1, y - 1, resposta);
+            
+            char msg_atirador[MAX_MSG];
+            char msg_oponente[MAX_MSG];
 
-            // Envia o resultado do tiro para ambos os jogadores
-            send(atual->socket, resposta, strlen(resposta), 0);
-            send(oponente->socket, resposta, strlen(resposta), 0);
+            if (strcmp(resposta, "MISS") == 0 || strcmp(resposta, "HIT") == 0 || strcmp(resposta, "SUNK") == 0) {
+                // Atirador
+                snprintf(msg_atirador, sizeof(msg_atirador), "%.1000s\n", resposta);
+                send(atual->socket, msg_atirador, strlen(msg_atirador), 0);
 
-            // Verifica se o jogo acabou
+                // Oponente
+                snprintf(msg_oponente, sizeof(msg_oponente), "Você foi atingido em (%d, %d): %.980s\n", x, y, resposta);
+                send(oponente->socket, msg_oponente, strlen(msg_oponente), 0);
+            } else {
+                snprintf(msg_atirador, sizeof(msg_atirador), "%.1000s\n", resposta);
+                send(atual->socket, msg_atirador, strlen(msg_atirador), 0);
+            }
+
+            printf("[DEBUG] Resposta enviada: %s\n", resposta);
+
             if (game_over(oponente)) {
+                // Envia WIN para jogador atual e LOSE para o oponente
                 send(atual->socket, CMD_WIN, strlen(CMD_WIN), 0);
                 send(oponente->socket, CMD_LOSE, strlen(CMD_LOSE), 0);
+
+                // Envia mensagem organizada de navio afundado para o jogador atual
+                send(atual->socket, ">>> NAVIO AFUNDADO! <<<\n", strlen(">>> NAVIO AFUNDADO! <<<\n"), 0);
+
+                // Envia comando END para ambos para sinalizar fim do jogo
+                send(atual->socket, CMD_END, strlen(CMD_END), 0);
+                send(oponente->socket, CMD_END, strlen(CMD_END), 0);
+
                 fim_jogo = 1;
-            } else {
-                // Alterna o turno para o próximo jogador
+            }
+            else {
                 jogador_atual = oponente->id;
             }
         } else {
@@ -283,11 +324,9 @@ void turnos_jogo(Jogador* player1, Jogador* player2, int jogador_inicial) {
         }
     }
 
-    // Finaliza jogo enviando comando END
     send(player1->socket, CMD_END, strlen(CMD_END), 0);
     send(player2->socket, CMD_END, strlen(CMD_END), 0);
 }
-
 
 // Thread para cada jogador
 void* recebe_jogador(void* arg) {
@@ -399,9 +438,21 @@ int main() {
     pthread_join(threads[0], NULL);
     pthread_join(threads[1], NULL);
 
+    // Aguarda ambos os jogadores enviarem READY
+    while (1) {
+        pthread_mutex_lock(&lock);
+        if (jogador_navios_ok == 2) {
+            pthread_mutex_unlock(&lock);
+            break;
+        }
+        pthread_mutex_unlock(&lock);
+        sleep(1); 
+    }
+
+    // Ambos estão prontos — sorteio já ocorreu antes
     printf("Ambos os jogadores estão prontos. Iniciando o jogo...\n");
 
-    // Lógica dos turnos
+    // Inicia a função de turnos com base no sorteio
     turnos_jogo(&player1, &player2, (sort == 0) ? player1.id : player2.id);
 
     // Fechando os sockets dos jogadores e do servidor
