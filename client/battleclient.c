@@ -64,19 +64,41 @@ void* recebe_mensagens(void* arg) {
         buffer[n] = '\0';
 
         pthread_mutex_lock(&a_lock);
-        if (strncmp(buffer, "Seu turno!", strlen("Seu turno!")) == 0) {
-            printf("\n**É SEU TURNO!** Use FIRE <linha> <coluna> (ex: FIRE 1 1)\n> ");
-        } else if (strncmp(buffer, "Aguarde o turno do outro jogador", strlen("Aguarde o turno do outro jogador")) == 0) {
+        if (strstr(buffer, "<<PLAY") != NULL && strstr(buffer, "É SEU TURNO!") != NULL) {
+            char turno_msg[MAX_MSG];
+            strcpy(turno_msg, buffer);  // salva a mensagem do servidor
+
+            // Espera o servidor mandar o tabuleiro de defesa
+            int n_tab = recv(sock, buffer, sizeof(buffer) - 1, 0);
+            if (n_tab > 0) {
+                buffer[n_tab] = '\0';
+                printf("\n** SEU TABULEIRO DE DEFESA **\n%s", buffer);
+            }
+
+            imprime_tabuleiro_ataque();  // Mostra o de ataque
+
+            // Agora imprime exatamente como você quer:
+            printf("\n%s Use FIRE <linha> <coluna>\n> ", turno_msg);
+        }
+        else if (strncmp(buffer, "Aguarde o turno do outro jogador", strlen("Aguarde o turno do outro jogador")) == 0) {
             printf("\nServidor: Aguarde o turno do outro jogador.\n");
-        } else if (strncmp(buffer, "HIT!", strlen("HIT!")) == 0) {
-            printf("\nServidor: HIT!\n");
-        } else if (strncmp(buffer, "MISS!", strlen("MISS!")) == 0) {
-            printf("\nServidor: MISS!\n");
-        } else if (strcmp(buffer, "Jogo terminado!") == 0) {
+        } 
+        else if (strncmp(buffer, "HIT", 3) == 0 || strncmp(buffer, "MISS", 4) == 0 || strncmp(buffer, "SUNK", 4) == 0) {
+            // Atualiza tabuleiro de ataque com base no último tiro
+            if (ultimo_tiro_x >= 0 && ultimo_tiro_y >= 0) {
+                if (strncmp(buffer, "MISS", 4) == 0)
+                    tabuleiro_ataque[ultimo_tiro_x][ultimo_tiro_y] = 'o';
+                else
+                    tabuleiro_ataque[ultimo_tiro_x][ultimo_tiro_y] = 'X';
+            }
+            printf("\nServidor: %s\n", buffer);
+        }
+        else if (strcmp(buffer, "Jogo terminado!") == 0) {
             printf("O jogo terminou. Conexão encerrada.\n");
             close(sock);
             exit(0);
-        } else {
+        } 
+        else {
             printf("\nServidor: %s\n", buffer);
         }
         pthread_mutex_unlock(&a_lock);
@@ -96,12 +118,16 @@ void inicia_jogo(int sock) {
         buffer[strcspn(buffer, "\r\n")] = '\0';
 
         if (strncmp(buffer, "FIRE", 4) == 0) {
+            int x, y;
+            if (sscanf(buffer, "FIRE %d %d", &x, &y) == 2) {
+                ultimo_tiro_x = x - 1;
+                ultimo_tiro_y = y - 1;
+            }
             send(sock, buffer, strlen(buffer), 0);
         }
     }
     pthread_join(recv_thread, NULL);
 }
-
 
 void le_posicionamento_navios(int sock) {
     char buffer[MAX_MSG];
@@ -110,44 +136,54 @@ void le_posicionamento_navios(int sock) {
     printf("Use o formato: POS <TIPO> <L> <C> <H/V>\n");
 
     while (navios_posicionados < MAX_NAVIOS) {
-        printf("> ");
+        printf("> "); 
+        fflush(stdout);
+
         fgets(buffer, sizeof(buffer), stdin);
         buffer[strcspn(buffer, "\r\n")] = '\0';
+
         if (strncmp(buffer, "POS ", 4) == 0) {
             send(sock, buffer, strlen(buffer), 0);
+
             memset(buffer, 0, sizeof(buffer));
             int n = recv(sock, buffer, sizeof(buffer) - 1, 0);
             if (n > 0) {
                 buffer[n] = '\0';
-                printf("%s\n", buffer);
-                if (strstr(buffer, "**Navio posicionado**")) navios_posicionados++;
+                // Imprime exatamente o que recebeu, que já tem linhas e formatação do tabuleiro
+                printf("%s", buffer);
+
+                // Só incrementa se recebeu confirmação
+                if (strstr(buffer, "**Navio posicionado**")) {
+                    navios_posicionados++;
+                }
             }
+        } else {
+            printf("Comando inválido, use o formato: POS <TIPO> <L> <C> <H/V>\n");
         }
     }
 }
 
 void prepara_inicio_jogo(int sock) {
     char buffer[MAX_MSG];
-    printf("\nDigite READY para sinalizar que você está pronto:\n> ");
+
     while (1) {
         fgets(buffer, sizeof(buffer), stdin);
         buffer[strcspn(buffer, "\r\n")] = 0;
         if (strcasecmp(buffer, CMD_READY) == 0) {
             send(sock, CMD_READY, strlen(CMD_READY), 0);
             break;
+        } else {
+            printf("> "); 
         }
     }
+
     int n = recv(sock, buffer, sizeof(buffer) - 1, 0);
-    if(n > 0) {
+    if (n > 0) {
         buffer[n] = '\0';
         printf("Servidor: %s\n", buffer);
-        if (strstr(buffer, "**INÍCIO DO JOGO!**") == NULL) {
-             n = recv(sock, buffer, sizeof(buffer)-1, 0);
-             if(n > 0) buffer[n] = '\0';
-             printf("Servidor: %s\n", buffer);
-        }
     }
 }
+
 
 int main() {
     int sock = socket(AF_INET, SOCK_STREAM, 0);

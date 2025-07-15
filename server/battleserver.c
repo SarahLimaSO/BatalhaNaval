@@ -209,13 +209,13 @@ void posicionamento_player(Jogador* player) {
                 int sucesso = posiciona_navio(player, tipo, x, y, orientacao);
                 tabuleiro_em_str(player, tab_str);
                 if (sucesso == 1) {
-                    snprintf(msg, sizeof(msg), "**Navio posicionado**\n%s", tab_str);
+                    snprintf(msg, sizeof(msg), "**Navio posicionado**\n%s\n", tab_str);
                     if ((player->total_sub == MAX_SUB && player->total_frag == MAX_FRAG && player->total_dest == MAX_DEST) && !msg_enviada) {
-                         strcat(msg, "\n**Todos os navios posicionados. Envie READY para confirmar.**\n");
+                         strcat(msg, "\n**Todos os navios posicionados. Envie READY para confirmar.**\n> ");
                          msg_enviada = 1;
                     }
                 } else if (sucesso == -1) {
-                    snprintf(msg, sizeof(msg), "!!Limite máximo de %s atingido!!\n%s", tipo, tab_str);
+                    snprintf(msg, sizeof(msg), "!!Limite máximo de %s atingido!!\n%s\n", tipo, tab_str);
                 } else {
                     snprintf(msg, sizeof(msg), "!!Erro ao posicionar navio!!\n%s\nPosicionamento inválido. Tente novamente.\n", tab_str);
                 }
@@ -240,18 +240,23 @@ void turnos_jogo(Jogador* player1, Jogador* player2, int jogador_inicial) {
         Jogador* atual = (jogador_atual == player1->id) ? player1 : player2;
         Jogador* oponente = (jogador_atual == player1->id) ? player2 : player1;
 
-        // Informa que é o turno do jogador atual
-        snprintf(msg, sizeof(msg), "**É SEU TURNO!** Use FIRE <linha> <coluna> (ex: FIRE 1 1)");
+        // Informa o jogador atual que é seu turno
+        snprintf(msg, sizeof(msg), "\n<<PLAY %d>> **É SEU TURNO!** Use FIRE <linha> <coluna> (ex: FIRE 1 1)\n", atual->id);
         send(atual->socket, msg, strlen(msg), 0);
 
-        // Informa ao adversário para aguardar
-        snprintf(msg, sizeof(msg), "\nAguarde o turno de %s...", atual->nome);
+        // Envia o tabuleiro do jogador atual (defesa)
+        char tab_str[MAX_MSG * 4];
+        tabuleiro_em_str(atual, tab_str);
+        send(atual->socket, tab_str, strlen(tab_str), 0);
+
+        // Agora informa o adversário para aguardar o turno
+        snprintf(msg, sizeof(msg), "\n<<PLAY %d>> Aguarde o turno de %s...\n", oponente->id, atual->nome);
         send(oponente->socket, msg, strlen(msg), 0);
 
         // Recebe o tiro do jogador atual
         memset(buffer, 0, sizeof(buffer));
         int n = recv(atual->socket, buffer, sizeof(buffer) - 1, 0);
-        if (n <= 0) break;
+        if (n <= 0) break;  // Cliente desconectou ou erro
         buffer[n] = '\0';
 
         int x, y;
@@ -259,10 +264,9 @@ void turnos_jogo(Jogador* player1, Jogador* player2, int jogador_inicial) {
             // Processa o tiro
             processa_tiro(oponente, x - 1, y - 1, resposta);
 
-            // Envia o resultado do tiro para o jogador atual e para o adversário
-            snprintf(msg, sizeof(msg), "%s", resposta);
-            send(atual->socket, msg, strlen(msg), 0);
-            send(oponente->socket, msg, strlen(msg), 0);
+            // Envia o resultado do tiro para ambos os jogadores
+            send(atual->socket, resposta, strlen(resposta), 0);
+            send(oponente->socket, resposta, strlen(resposta), 0);
 
             // Verifica se o jogo acabou
             if (game_over(oponente)) {
@@ -279,10 +283,11 @@ void turnos_jogo(Jogador* player1, Jogador* player2, int jogador_inicial) {
         }
     }
 
-    // Após a conclusão do jogo, encerra a partida para ambos os jogadores
+    // Finaliza jogo enviando comando END
     send(player1->socket, CMD_END, strlen(CMD_END), 0);
     send(player2->socket, CMD_END, strlen(CMD_END), 0);
 }
+
 
 // Thread para cada jogador
 void* recebe_jogador(void* arg) {
