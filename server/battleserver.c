@@ -245,10 +245,10 @@ void posicionamento_player(Jogador* player) {
                 }
                 send(player->socket, msg, strlen(msg), 0);
             } else {
-                send(player->socket, "!!Formato inválido!!\n", strlen("!!Formato inválido!!\n"), 0);
+                send(player->socket, "!!Formato inválido!!\n\n", strlen("!!Formato inválido!!\n\n"), 0);
             }
         } else if (strcasecmp(buffer, CMD_READY) != 0) {
-            send(player->socket, "!!Comando desconhecido!!\n", strlen("!!Comando desconhecido!!\n"), 0);
+            send(player->socket, "!!Comando desconhecido!!\n\n", strlen("!!Comando desconhecido!!\n\n"), 0);
         }
     }
 }
@@ -266,11 +266,11 @@ void turnos_jogo(Jogador* player1, Jogador* player2, int jogador_inicial) {
         char msg[MAX_MSG * 4];
 
         // Mensagem para o jogador da vez
-        snprintf(msg, sizeof(msg), "<<PLAY %d>>\nÉ SEU TURNO! Use FIRE <linha> <coluna> (ex: FIRE 1 1)\n", atual->id);
+        snprintf(msg, sizeof(msg), "\n------------\n<<PLAY %d>>\nÉ SEU TURNO! Use FIRE <linha> <coluna> (ex: FIRE 1 1)\n", atual->id);
         send(atual->socket, msg, strlen(msg), 0);
 
         // Mensagem para o oponente
-        snprintf(msg, sizeof(msg), "<<PLAY %d>>\nAguarde o turno de %s...\n", atual->id, atual->nome);
+        snprintf(msg, sizeof(msg), "\n------------\n<<PLAY %d>>\nAguarde o turno de %s...\n", atual->id, atual->nome);
         send(oponente->socket, msg, strlen(msg), 0);
 
         // Recebe o comando do jogador
@@ -354,7 +354,7 @@ void* recebe_jogador(void* arg) {
     char msgInicial[MAX_MSG*5];
     inicializa_tabuleiro(player->tab);
     tabuleiro_em_str(player, tab_str);
-    snprintf(msgInicial, sizeof(msgInicial), "JOGO INICIADO\n[Seu tabuleiro]%s\nVocê é o jogador %d\n", tab_str, player->id);
+    snprintf(msgInicial, sizeof(msgInicial), "JOGO INICIADO\n[Seu tabuleiro]%s\n[Você é o jogador %d]\n", tab_str, player->id);
     send(player->socket, msgInicial, strlen(msgInicial), 0);
 
     player->total_sub = player->total_frag = player->total_dest = 0;

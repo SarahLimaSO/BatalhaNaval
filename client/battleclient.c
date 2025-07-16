@@ -110,7 +110,7 @@ void* recebe_mensagens(void* arg) {
             exit(0);
         }
         else {
-            printf("\nServidor: %s\n> ", buffer);
+            printf("\nServidor: %s\n ", buffer);
             fflush(stdout);
         }
 
@@ -144,7 +144,7 @@ void inicia_jogo(int sock) {
 void le_posicionamento_navios(int sock) {
     char buffer[MAX_MSG];
     int navios_posicionados = 0;
-    printf("**Fase de Posicionamento de Navios**\n");
+    printf("**Fase de Posicionamento de Navios**\n\n");
     printf("Use o formato: POS <TIPO> <L> <C> <H/V>\n");
 
     while (navios_posicionados < MAX_NAVIOS) {
