@@ -192,7 +192,7 @@ void prepara_inicio_jogo(int sock) {
     int n = recv(sock, buffer, sizeof(buffer) - 1, 0);
     if (n > 0) {
         buffer[n] = '\0';
-        printf("Servidor: %s\n", buffer);
+        printf("\nServidor: %s\n", buffer);
     }
 }
 
