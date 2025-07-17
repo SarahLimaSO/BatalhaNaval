@@ -186,41 +186,52 @@ void posicionamento_player(Jogador* player) {
     char msg[MAX_MSG * 5]; // Aumentado para evitar truncamento
     int msg_enviada = 0;
 
-    while (1) {
-        memset(buffer, 0, sizeof(buffer));
-        int n = recv(player->socket, buffer, sizeof(buffer) - 1, 0);
+     while (1) {
+        memset(buffer, 0, sizeof(buffer));  // Limpa o buffer antes de receber novo comando
+        int n = recv(player->socket, buffer, sizeof(buffer) - 1, 0); // Recebe dados do cliente
         if (n <= 0) {
-            perror("Erro ao receber dados do cliente");
+            perror("Erro ao receber dados do cliente"); // Se erro ou desconexão
             break;
         }
-        buffer[n] = '\0';
-        buffer[strcspn(buffer, "\r\n")] = 0;
+        buffer[n] = '\0';                    // Finaliza string
+        buffer[strcspn(buffer, "\r\n")] = 0; // Remove quebra de linha
 
         if (strcasecmp(buffer, CMD_READY) == 0) {
+            // Confere se todos os navios foram posicionados
             if (player->total_sub == MAX_SUB && player->total_frag == MAX_FRAG && player->total_dest == MAX_DEST) {
-                pthread_mutex_lock(&lock);
-                player->posicionamento_ok = 1;
-                jogador_navios_ok++;
+                pthread_mutex_lock(&lock); // Protege acesso à variável global
+
+                player->posicionamento_ok = 1; // Marca que este jogador terminou o posicionamento
+                jogador_navios_ok++;          
+
+                // Se ainda falta o outro jogador
                 if (jogador_navios_ok < 2) {
                     snprintf(msg, sizeof(msg), "**AGUARDANDO ADVERSÁRIO...**\n");
                     send(player->socket, msg, strlen(msg), 0);
+
+                    // Espera a outra thread/jogador usar cond_inicio
                     while (jogador_navios_ok < 2) {
                         pthread_cond_wait(&cond_inicio, &lock);
                     }
                 } else {
+                    // Se ambos posicionaram, avisa todos via broadcast
                     pthread_cond_broadcast(&cond_inicio);
                 }
+
                 pthread_mutex_unlock(&lock);
+
+                // Confirma início do jogo para este cliente
                 snprintf(msg, sizeof(msg), "**INÍCIO DO JOGO!**\n");
                 send(player->socket, msg, strlen(msg), 0);
-                break;
+                break; 
             } else {
+                // Informa ao jogador que ele ainda não posicionou todos os navios
                 snprintf(msg, sizeof(msg),
                     "!!Você precisa posicionar todos os navios antes de enviar READY!!\n"
                     "- Submarinos: %d/%d\n- Fragatas: %d/%d\n- Destroyers: %d/%d\n",
                     player->total_sub, MAX_SUB, player->total_frag, MAX_FRAG, player->total_dest, MAX_DEST);
                 send(player->socket, msg, strlen(msg), 0);
-                continue;
+                continue; // Volta ao início do loop
             }
         }
 
@@ -248,6 +259,7 @@ void posicionamento_player(Jogador* player) {
                 send(player->socket, "!!Formato inválido!!\n\n", strlen("!!Formato inválido!!\n\n"), 0);
             }
         } else if (strcasecmp(buffer, CMD_READY) != 0) {
+            // Se comando é desconhecido, envia aviso ao cliente
             send(player->socket, "!!Comando desconhecido!!\n\n", strlen("!!Comando desconhecido!!\n\n"), 0);
         }
     }
@@ -328,39 +340,50 @@ void turnos_jogo(Jogador* player1, Jogador* player2, int jogador_inicial) {
     send(player2->socket, CMD_END, strlen(CMD_END), 0);
 }
 
-// Thread para cada jogador
+// Thread para cada jogador conectando ao servidor
 void* recebe_jogador(void* arg) {
     Jogador* player = (Jogador*)arg;
-    char buffer[MAX_MSG];
-    char tab_str[MAX_MSG * 4];
+    char buffer[MAX_MSG];          
+    char tab_str[MAX_MSG * 4];      
 
-    // Recebe o comando JOIN
+    // Recebe o comando JOIN com o nome do jogador
     int n = recv(player->socket, buffer, sizeof(buffer) - 1, 0);
     if (n > 0) {
-        buffer[n] = '\0';
-        sscanf(buffer, "JOIN %63s", player->nome);
+        buffer[n] = '\0';                        
+        sscanf(buffer, "JOIN %63s", player->nome); // Extrai nome do jogador
     }
 
-    pthread_mutex_lock(&lock);
-    jogadores_prontos++;
+    pthread_mutex_lock(&lock);  
+
+    jogadores_prontos++;  // Contador de jogadores conectados e prontos
     if (jogadores_prontos < 2) {
+
+        // Se só um jogador está pronto, avisa para esperar o outro
         send(player->socket, "AGUARDE JOGADOR\n", strlen("AGUARDE JOGADOR\n"), 0);
-        pthread_cond_wait(&cond_inicio, &lock);
+        pthread_cond_wait(&cond_inicio, &lock);  // Espera sinal da thread do outro jogador
     } else {
+
+        // Se já há dois jogadores, envia sinal para iniciar o jogo em ambas threads
         pthread_cond_broadcast(&cond_inicio);
     }
-    pthread_mutex_unlock(&lock);
+
+    pthread_mutex_unlock(&lock); // Libera acesso
     
     char msgInicial[MAX_MSG*5];
-    inicializa_tabuleiro(player->tab);
-    tabuleiro_em_str(player, tab_str);
-    snprintf(msgInicial, sizeof(msgInicial), "JOGO INICIADO\n[Seu tabuleiro]%s\n[Você é o jogador %d]\n", tab_str, player->id);
-    send(player->socket, msgInicial, strlen(msgInicial), 0);
 
-    player->total_sub = player->total_frag = player->total_dest = 0;
-    posicionamento_player(player);
+    inicializa_tabuleiro(player->tab);         // Inicializa o tabuleiro do jogador
+    tabuleiro_em_str(player, tab_str);         // Gera representação visual do tabuleiro em string
 
-    return NULL;
+    // Formata mensagem de início do jogo para o jogador
+    snprintf(msgInicial, sizeof(msgInicial),
+        "JOGO INICIADO\n[Seu tabuleiro]%s\n[Você é o jogador %d]\n", tab_str, player->id);
+
+    send(player->socket, msgInicial, strlen(msgInicial), 0); // Envia ao cliente
+
+    player->total_sub = player->total_frag = player->total_dest = 0; // Zera navios posicionados
+    posicionamento_player(player); // Inicia fase de posicionamento de navios
+
+    return NULL; // Termina a thread
 }
 
 int main() {
@@ -390,7 +413,7 @@ int main() {
         exit(1);
     }
 
-    if (listen(server_fd, 2) < 0) {
+    if (listen(server_fd, 2) < 0) { // Aceita até 2 conexões simultâneas
         perror("Erro ao aguardar conexões");
         exit(1);
     }
@@ -418,8 +441,9 @@ int main() {
     printf("Jogador 2 conectado!\n");
     send(player2.socket, "<<[Bem vind@ ao jogo Batalha Naval!]>>\n", strlen("<<[Bem vind@ ao jogo Batalha Naval!]>>\n"), 0);
 
-    srand(time(NULL));
-    int sort = rand() % 2;
+    // Sorteio do jogador 1 e 2
+    srand(time(NULL));         // Inicializa gerador de números aleatórios
+    int sort = rand() % 2;     // Sorteia 0 ou 1
     if (sort == 0) {
         player1.id = 1;
         player2.id = 2;
@@ -439,14 +463,14 @@ int main() {
     pthread_join(threads[1], NULL);
 
     // Aguarda ambos os jogadores enviarem READY
-    while (1) {
+     while (1) {
         pthread_mutex_lock(&lock);
-        if (jogador_navios_ok == 2) {
+        if (jogador_navios_ok == 2) {  // Verifica se ambos terminaram o posicionamento
             pthread_mutex_unlock(&lock);
             break;
         }
         pthread_mutex_unlock(&lock);
-        sleep(1); 
+        sleep(1); // Aguarda antes de verificar novamente
     }
 
     // Ambos estão prontos — sorteio já ocorreu antes
@@ -462,4 +486,3 @@ int main() {
 
     return 0;
 }
-
